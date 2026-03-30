@@ -1,0 +1,225 @@
+import type { StatsResult } from './types';
+
+export function buildKeywordAnalysisPrompt(
+  handle: string,
+  keywords: string[],
+  campaignStartDate: string,
+  campaignEndDate: string,
+  seasonalityOverride?: string,
+  useExactKeywords?: boolean
+): string {
+  const seasonalityInstruction = seasonalityOverride
+    ? `\n\nIMPORTANT: The user has specified that the seasonality type MUST be "${seasonalityOverride}". You MUST use this exact seasonality classification — do not override it with your own assessment. Adjust your lookback period recommendation accordingly based on this seasonality type.`
+    : '';
+
+  const exactKeywordsInstruction = useExactKeywords
+    ? `\n\nIMPORTANT — EXACT KEYWORDS MODE: The user has provided client-approved keywords that MUST be used exactly as-is. Build the suggestedQuery by joining the provided keywords with OR operators. Do NOT add new keywords, expand terms, add hashtag variants, or brainstorm related terms. Only add contextual negations (-term) at the end if appropriate for brand safety. The suggestedKeywords array should be empty.`
+    : '';
+
+  return `You are an expert in X (Twitter) advertising and search query syntax. Today's date is ${new Date().toISOString().split('T')[0]}.
+
+A user wants to set up Trend Genius ad triggers for the following campaign:
+- Advertiser X Handle: @${handle}
+- Campaign Dates: ${campaignStartDate} to ${campaignEndDate}
+- Keywords/Topics: ${keywords.join(', ')}${exactKeywordsInstruction}
+
+The handle @${handle} is provided so you can understand the brand's vibe, audience, and the type of sentiment/conversation that surrounds them. Use this context to craft a query that captures the kind of organic conversation that would be relevant to this brand's campaign — but do NOT include the handle itself in the search query.
+
+Your tasks:
+
+1. CAMPAIGN QUERY CONSTRUCTION (suggestedQuery)
+This query will be used as the LIVE TRIGGER for the Trend Genius campaign — it determines when ads fire.
+
+- Validate whether these keywords are suitable for monitoring post volume on X.
+- Suggest an optimized X search query using proper syntax (OR operators, quoted phrases, negations).
+- DO include retweets — do NOT add -is:retweet. We want total conversation volume including retweets.
+
+NICHE FOCUS (CRITICAL):
+- The campaign query MUST focus ONLY on the user's specific niche or angle, NOT the broader event/topic.
+- Look at the user's keywords to understand their INTENT. If they say "world cup travel", they want TRAVEL conversation around the World Cup — NOT general World Cup sports discussion. Build the query around travel-specific terms (flights, hotels, fan travel, host city tourism, etc.) that happen to spike during the World Cup.
+- Similarly, "Super Bowl food" → food/snack/party terms that spike during Super Bowl, NOT general football terms. "Olympics fashion" → fashion/style terms during Olympics, NOT medal counts.
+- If the keywords indicate a general topic (just "world cup" or "NFL"), THEN cast a wide net with all variations.
+- The trigger query should match the ACTUAL conversation niche the advertiser wants to ride.
+
+WIDE NET WITHIN THE NICHE:
+- Within the identified niche, cast a WIDE net: brainstorm ALL common variations, abbreviations, hashtags, related terms, and alternate phrasings people actually use on X.
+- Include hashtag variants (with and without #) where appropriate.
+- Consider event-specific terms based on the campaign dates (year-specific hashtags, host cities, tournament phases, etc.).
+
+SPECIFICITY IS CRITICAL:
+- Every keyword in the query must be SPECIFIC to the topic. Do NOT include generic words that have broad meanings outside the topic. For example, "final" alone could mean anything — use "World Cup final" instead. "Goal" alone is too generic — use "soccer goal" or "#WorldCupGoal". "Match" alone is ambiguous — use "World Cup match".
+- When in doubt, use quoted multi-word phrases to ensure specificity (e.g., "group stage" not just stage).
+- Single common English words should NEVER appear alone in the query unless they are unambiguously tied to the topic (e.g., "FIFA" is fine because it only means one thing).
+
+CONTEXTUAL NEGATIONS:
+- Think carefully about what real-world topics, events, or conversations could overlap with the keywords but would be OFF-TOPIC or inappropriate for the brand.
+- Add negation operators (-term) to filter these out. Examples:
+  - For a Call of Duty campaign: negate real-world war, military conflict, current geopolitical events (e.g., -Ukraine -Afghanistan -"war crimes" -invasion -bombing) so the query captures gaming conversation, not news about actual wars.
+  - For a World Cup campaign: negate gambling/betting terms if the brand doesn't want that association (e.g., -bet -odds -wager).
+  - For a food brand: negate food poisoning, recalls, lawsuits, etc.
+- The negations should be specific to the brand and topic — do NOT add generic profanity filters. Only negate terms that would cause the query to pick up conversations unrelated to the campaign or damaging to the brand's context.
+- Place all negations at the end of the query.
+- List your negations and reasoning in the "reasoning" field so the user can review them.
+
+2. SEASONALITY CLASSIFICATION
+Determine the seasonality type. This is critical — getting this wrong means looking at the wrong historical data.
+
+- "seasonal" — ONLY for topics where the EXACT SAME keywords recur on a predictable annual cycle. Examples: NFL, NBA, MLB seasons, Christmas, back-to-school, tax season, Black Friday. The key test: would searching these exact keywords in last year's same time window show a comparable conversation pattern? If yes → seasonal.
+- "non-seasonal" — for topics where the specific content/subjects change over time, even if the broader category is ongoing. This includes:
+  - Streaming/entertainment content (Disney+, Netflix, HBO shows) — the specific titles in the query (e.g., "Daredevil Born Again", "X-Men 97 Season 2") are NEW releases that didn't exist last year. Looking back a year would show conversation about completely different shows. Use recent data instead.
+  - Celebrities, influencers, brand ambassadors — their relevance is current, not cyclical.
+  - Brand names, general interest topics — conversation volume reflects current events, not annual patterns.
+  - Any query containing specific show/movie/album/product TITLES that were released or announced recently.
+- "event-driven" — tied to a specific upcoming one-off event (product launch, award show, World Cup, Olympics). The event itself may be periodic but the keywords are specific to THIS instance.
+
+ASK YOURSELF: If I search these exact keywords in last year's data from the same dates, would I get meaningful comparable volume? If the answer is NO (because the shows/products/events didn't exist yet), it is NOT seasonal.
+
+3. HISTORICAL LOOKBACK PERIOD (CRITICAL)
+Recommend the best historical date range to pull post volume data from. The lookback period MUST match the seasonality classification:
+
+- "seasonal" → Use the SAME time window from LAST YEAR. E.g., NFL campaign Sep 5–Dec 20 → look at Sep 5–Dec 20 of the previous year. This works because the same keywords (NFL, football, touchdown) generate comparable volume every year.
+- "non-seasonal" → Use the MOST RECENT period, matching the same duration as the campaign. E.g., if the campaign is 3 months, look at the most recent 3 months. This captures the current baseline for these specific titles/topics.
+- "event-driven" → For periodic events (World Cup, Olympics): look at the LAST occurrence of that event. For one-off events: use the most recent period matching campaign duration.
+
+The lookback dates must be in the past (before today). Return them as ISO date strings (YYYY-MM-DD).
+
+4. LOOKBACK QUERY (only when needed)
+MOST OF THE TIME, the campaign query (suggestedQuery) works fine for the historical lookback too — the same keywords apply to both periods. In these cases, set lookbackQuery to null.
+
+ONLY provide a separate lookbackQuery when the historical period has DIFFERENT specifics that require adapted terms. The most common case:
+- Event-driven campaigns with location/host-specific terms: If the campaign targets the 2026 World Cup in USA/Mexico/Canada, but the lookback period is the 2022 World Cup in Qatar, the lookback query must swap 2026 host city terms for 2022-era terms (Qatar, Doha, Lusail, etc.).
+- The lookback query should be the HISTORICAL EQUIVALENT — same niche, same conversation type, but with period-appropriate terms.
+
+DO NOT provide a lookbackQuery for:
+- Seasonal topics where the same keywords recur (NFL, Christmas) — the campaign query works as-is.
+- Non-seasonal topics using recent data — same query, same period.
+- Any case where the campaign query terms are equally valid in the lookback period.${seasonalityInstruction}
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "isValid": true,
+  "suggestedQuery": "the campaign trigger query — focused on the user's specific niche",
+  "reasoning": "brief explanation of your query choices and niche focus",
+  "seasonality": "seasonal" | "non-seasonal" | "event-driven",
+  "seasonalityExplanation": "why you chose this seasonality type",
+  "lookbackStartDate": "YYYY-MM-DD",
+  "lookbackEndDate": "YYYY-MM-DD",
+  "lookbackReasoning": "explain why this historical period is the best predictor for the campaign",
+  "lookbackQuery": null or "adapted query ONLY if historical period needs different terms",
+  "lookbackQueryReasoning": null or "explain how the lookback query was adapted and why",
+  "suggestedKeywords": ["all", "individual", "terms", "and", "variations", "you", "considered"]
+}`;
+}
+
+export function buildThresholdAnalysisPrompt(
+  query: string,
+  stats: StatsResult,
+  seasonality: string,
+  campaignStartDate: string,
+  campaignEndDate: string,
+  totalBudget: number
+): string {
+  // Compute campaign duration in days
+  const campStart = new Date(campaignStartDate);
+  const campEnd = new Date(campaignEndDate);
+  const campaignDays = Math.round((campEnd.getTime() - campStart.getTime()) / (1000 * 60 * 60 * 24));
+
+  // Format day-of-week averages
+  const dowLines = Object.entries(stats.dayOfWeekAvg)
+    .map(([day, avg]) => `  ${day}: ${avg} posts/hour`)
+    .join('\n');
+
+  // Format hour-of-day averages (top 6 highest + top 6 lowest for brevity)
+  const hourEntries = Object.entries(stats.hourOfDayAvg).sort((a, b) => b[1] - a[1]);
+  const peakHourLines = hourEntries.slice(0, 6).map(([h, avg]) => `  ${h}:00 UTC: ${avg}`).join('\n');
+  const quietHourLines = hourEntries.slice(-6).map(([h, avg]) => `  ${h}:00 UTC: ${avg}`).join('\n');
+
+  return `You are an expert Advertising Trigger System analyst specializing in X (Twitter) post volume analysis for Trend Genius campaigns.
+
+You have been given hourly post volume statistics for the following query on X:
+Query: ${query}
+Campaign Dates: ${campaignStartDate} to ${campaignEndDate} (${campaignDays} days)
+Seasonality: ${seasonality}
+Total Ad Spend Budget: $${totalBudget.toLocaleString()}
+
+Historical Hourly Volume Statistics:
+- Total data points (hours): ${stats.totalDataPoints}
+- Total calendar days in data: ${stats.totalDaysInData}
+- Mean: ${stats.mean} posts/hour
+- Median: ${stats.median} posts/hour
+- Standard Deviation: ${stats.stdDev}
+- Min: ${stats.min} posts/hour
+- Max: ${stats.max} posts/hour
+- 25th percentile: ${stats.p25} posts/hour
+- 75th percentile: ${stats.p75} posts/hour
+- 90th percentile: ${stats.p90} posts/hour
+- 95th percentile: ${stats.p95} posts/hour
+- 99th percentile: ${stats.p99} posts/hour
+- Quiet hours (below 25% of mean): ${stats.quietHourPct}%
+
+Day-of-Week Average Volume (posts/hour):
+${dowLines}
+
+Peak Hours (UTC, top 6 by average volume):
+${peakHourLines}
+Quietest Hours (UTC, bottom 6):
+${quietHourLines}
+
+Spike Analysis (spikes = contiguous periods above P90):
+- Distinct spike events: ${stats.spikeCount}
+- Average spike duration: ${stats.avgSpikeDurationHours} hours
+- Calendar days with spike activity: ${stats.spikeDays} out of ${stats.totalDaysInData} days (${stats.totalDaysInData > 0 ? Math.round((stats.spikeDays / stats.totalDaysInData) * 100) : 0}%)
+
+Based on this data, recommend ON and OFF thresholds for the Trend Genius trigger system.
+
+The goal is to ONLY trigger ads during genuine SPIKES — the big, obvious surges in conversation that stand out dramatically from the baseline. This is NOT about capturing above-average volume; it's about identifying moments when something is genuinely trending or breaking through.
+
+ON THRESHOLD GUIDELINES:
+- The ON threshold should target the TOP of the distribution — the clear spikes, not just "above average" hours.
+- Start at the 90th-95th percentile as your baseline, then adjust UP based on these factors:
+  - If the standard deviation is high relative to the mean (stdDev > 0.3 * mean), there are real spikes — set the threshold closer to P95 or higher to only catch the genuine surges.
+  - If the data has a "fat tail" (P99 is much larger than P95), there are extreme spikes — the threshold can be set between P90 and P95 to catch those moments.
+  - If the volume is consistently high with little variation (low stdDev relative to mean), set the threshold higher (P95+) since most hours look similar and you only want the outliers.
+- The ON threshold should trigger on roughly 5-10% of hours at most — not 20-25%.
+- Round the threshold to a clean number (e.g., 15000 not 14919).
+
+OFF THRESHOLD GUIDELINES:
+- Set the OFF threshold with meaningful hysteresis — typically 25-40% below the ON threshold.
+- It should be well above the median to avoid staying "on" during normal volume.
+- The gap between ON and OFF should be wide enough to prevent rapid cycling.
+
+CONSECUTIVE HOURS:
+- Recommend the number of consecutive hours above the ON threshold before triggering.
+- Use the spike analysis data: if average spike duration is ${stats.avgSpikeDurationHours} hours, set consecutive hours to ensure you catch real spikes (typically 2, but adjust based on the data).
+
+PEAK HOURS:
+- Use the hour-of-day data provided above to identify actual peak hours. Convert UTC to EST (UTC-5) for the response.
+- Also consider day-of-week patterns — note which days have the highest volume.
+
+CONFIDENCE:
+- Provide a confidence level (high/medium/low) based on data quality and volume.
+
+BUDGET ALLOCATION:
+- Use the spike analysis to estimate trend days: in the historical data, ${stats.spikeDays} out of ${stats.totalDaysInData} days had spike activity. Scale this ratio to the ${campaignDays}-day campaign period to estimate how many days the trigger will fire.
+- Then calculate a recommended max daily spend: divide the total budget ($${totalBudget.toLocaleString()}) by the estimated number of trend days.
+- Explain your reasoning for the trend day estimate and daily spend recommendation.
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "onThreshold": <number>,
+  "offThreshold": <number>,
+  "consecutiveHours": <number>,
+  "confidence": "high" | "medium" | "low",
+  "reasoning": "detailed explanation of how you determined the thresholds",
+  "peakHours": ["list of typical peak hour ranges, e.g. '6PM-10PM EST'"],
+  "avgHourlyVolume": ${stats.mean},
+  "medianHourlyVolume": ${stats.median},
+  "stdDeviation": ${stats.stdDev},
+  "p75": ${stats.p75},
+  "p90": ${stats.p90},
+  "p95": ${stats.p95},
+  "estimatedTrendDays": <number>,
+  "recommendedMaxDailySpend": <number>,
+  "budgetReasoning": "explanation of how you estimated trend days and derived the daily spend recommendation"
+}`;
+}
