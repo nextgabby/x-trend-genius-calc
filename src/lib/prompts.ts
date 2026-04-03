@@ -13,7 +13,12 @@ export function buildKeywordAnalysisPrompt(
     : '';
 
   const exactKeywordsInstruction = useExactKeywords
-    ? `\n\nIMPORTANT — EXACT KEYWORDS MODE: The user has provided client-approved keywords that MUST be used exactly as-is. Build the suggestedQuery by joining the provided keywords with OR operators. Do NOT add new keywords, expand terms, add hashtag variants, or brainstorm related terms. Only add contextual negations (-term) at the end if appropriate for brand safety. The suggestedKeywords array should be empty.`
+    ? `\n\nCRITICAL — EXACT KEYWORDS MODE (STRICT): The user has provided client-approved keywords that MUST be used EXACTLY as-is with ZERO modifications. Rules:
+- Build the suggestedQuery by joining ONLY the provided keywords with OR operators. Do NOT add ANY new keywords, hashtags, hashtag variants, abbreviations, synonyms, related terms, expanded terms, or brainstormed alternatives.
+- Do NOT add terms with or without "#" — if the user provided "NFL", do NOT add "#NFL". If the user provided "#NFL", do NOT add "NFL". Use ONLY what was given.
+- The ONLY additions allowed are contextual negation terms (-term) at the end for brand safety.
+- The suggestedKeywords array MUST be empty — return [].
+- If you add even ONE keyword that was not in the original input, you have failed this task.`
     : '';
 
   return `You are an expert in X (Twitter) advertising and search query syntax. Today's date is ${new Date().toISOString().split('T')[0]}.
@@ -94,6 +99,11 @@ DO NOT provide a lookbackQuery for:
 - Seasonal topics where the same keywords recur (NFL, Christmas) — the campaign query works as-is.
 - Non-seasonal topics using recent data — same query, same period.
 - Any case where the campaign query terms are equally valid in the lookback period.${seasonalityInstruction}
+
+DETERMINISM & ACCURACY (CRITICAL):
+- Do NOT hallucinate, fabricate, or invent any data. Every value must be derived from the input provided.
+- Your response must be deterministic: given the exact same input, you must produce the exact same output every time. Do not introduce randomness or variation.
+- For seasonality classification and lookback dates, apply the rules above mechanically — do not vary your answer between runs.
 
 Respond ONLY with valid JSON in this exact format:
 {
@@ -203,6 +213,12 @@ BUDGET ALLOCATION:
 - Use the spike analysis to estimate trend days: in the historical data, ${stats.spikeDays} out of ${stats.totalDaysInData} days had spike activity. Scale this ratio to the ${campaignDays}-day campaign period to estimate how many days the trigger will fire.
 - Then calculate a recommended max daily spend: divide the total budget ($${totalBudget.toLocaleString()}) by the estimated number of trend days.
 - Explain your reasoning for the trend day estimate and daily spend recommendation.
+
+DETERMINISM & ACCURACY (CRITICAL):
+- Do NOT hallucinate, fabricate, or invent any numbers. Every threshold, metric, and estimate must be derived directly from the statistical data provided above.
+- Your response must be deterministic: given the exact same input statistics, you must produce the exact same thresholds, estimates, and recommendations every time. Do not introduce randomness or variation.
+- Use the exact statistical values provided — do not approximate or recalculate them differently between runs.
+- The avgHourlyVolume, medianHourlyVolume, stdDeviation, p75, p90, and p95 fields MUST exactly match the values provided in the input above.
 
 Respond ONLY with valid JSON in this exact format:
 {
