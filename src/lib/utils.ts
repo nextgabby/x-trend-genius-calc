@@ -158,6 +158,28 @@ export function getLookbackPeriod(
   };
 }
 
+export function recalculateBudget(
+  data: HourlyDataPoint[],
+  onThreshold: number,
+  totalBudget: number,
+  campaignDays: number,
+  totalDaysInData: number
+): { estimatedTrendDays: number; recommendedMaxDailySpend: number } {
+  // Count unique days with at least one hour above the ON threshold
+  const daysAbove = new Set<string>();
+  for (const d of data) {
+    if (d.count >= onThreshold) {
+      daysAbove.add(d.timestamp.split('T')[0]);
+    }
+  }
+
+  const ratio = totalDaysInData > 0 ? daysAbove.size / totalDaysInData : 0;
+  const estimatedTrendDays = Math.max(1, Math.round(ratio * campaignDays));
+  const recommendedMaxDailySpend = Math.round(totalBudget / estimatedTrendDays);
+
+  return { estimatedTrendDays, recommendedMaxDailySpend };
+}
+
 export function formatNumber(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;

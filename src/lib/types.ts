@@ -58,6 +58,7 @@ export interface WizardState {
   approvedQuery: string;
   countsData: CountsResponse | null;
   thresholdRecommendation: ThresholdRecommendation | null;
+  originalThresholdRecommendation: ThresholdRecommendation | null;
   isLoading: boolean;
   error: string | null;
 }

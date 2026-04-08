@@ -15,6 +15,7 @@ interface WizardContextValue extends WizardState {
   setApprovedQuery: (query: string) => void;
   setCountsData: (data: CountsResponse) => void;
   setThresholdRecommendation: (rec: ThresholdRecommendation) => void;
+  setOriginalThresholdRecommendation: (rec: ThresholdRecommendation) => void;
   setIsLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   goToStep: (step: number) => void;
@@ -37,6 +38,7 @@ const initialState: WizardState = {
   approvedQuery: '',
   countsData: null,
   thresholdRecommendation: null,
+  originalThresholdRecommendation: null,
   isLoading: false,
   error: null,
 };
@@ -64,6 +66,10 @@ export function WizardProvider({ children }: { children: React.ReactNode }) {
 
   const setThresholdRecommendation = useCallback((rec: ThresholdRecommendation) => {
     setState((prev) => ({ ...prev, thresholdRecommendation: rec }));
+  }, []);
+
+  const setOriginalThresholdRecommendation = useCallback((rec: ThresholdRecommendation) => {
+    setState((prev) => ({ ...prev, originalThresholdRecommendation: rec }));
   }, []);
 
   const setIsLoading = useCallback((loading: boolean) => {
@@ -99,6 +105,7 @@ export function WizardProvider({ children }: { children: React.ReactNode }) {
         setApprovedQuery,
         setCountsData,
         setThresholdRecommendation,
+        setOriginalThresholdRecommendation,
         setIsLoading,
         setError,
         goToStep,

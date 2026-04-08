@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useWizard } from '@/context/WizardContext';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ThresholdChart from '@/components/charts/ThresholdChart';
-import { formatNumber } from '@/lib/utils';
+import { formatNumber, recalculateBudget } from '@/lib/utils';
 
 function formatCurrency(n: number): string {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
@@ -20,7 +20,9 @@ export default function ThresholdAnalysisStep() {
     campaignInput,
     countsData,
     thresholdRecommendation,
+    originalThresholdRecommendation,
     setThresholdRecommendation,
+    setOriginalThresholdRecommendation,
     isLoading,
     setIsLoading,
     error,
@@ -28,6 +30,19 @@ export default function ThresholdAnalysisStep() {
     nextStep,
     prevStep,
   } = useWizard();
+
+  const [editOn, setEditOn] = useState<string>('');
+  const [editOff, setEditOff] = useState<string>('');
+  const [editConsecutive, setEditConsecutive] = useState<string>('');
+
+  // Sync local edit state when recommendation loads
+  useEffect(() => {
+    if (thresholdRecommendation) {
+      setEditOn(String(thresholdRecommendation.onThreshold));
+      setEditOff(String(thresholdRecommendation.offThreshold));
+      setEditConsecutive(String(thresholdRecommendation.consecutiveHours));
+    }
+  }, [thresholdRecommendation]);
 
   useEffect(() => {
     if (thresholdRecommendation) return;
@@ -57,6 +72,7 @@ export default function ThresholdAnalysisStep() {
 
         const result = await res.json();
         setThresholdRecommendation(result);
+        setOriginalThresholdRecommendation(result);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Threshold calculation failed');
       } finally {
@@ -65,7 +81,60 @@ export default function ThresholdAnalysisStep() {
     }
 
     calculateThresholds();
-  }, [approvedQuery, keywordAnalysis, campaignInput, countsData, thresholdRecommendation, setThresholdRecommendation, setIsLoading, setError]);
+  }, [approvedQuery, keywordAnalysis, campaignInput, countsData, thresholdRecommendation, setThresholdRecommendation, setOriginalThresholdRecommendation, setIsLoading, setError]);
+
+  const campaignDays = useMemo(() => {
+    const start = new Date(campaignInput.campaignStartDate);
+    const end = new Date(campaignInput.campaignEndDate);
+    return Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  }, [campaignInput.campaignStartDate, campaignInput.campaignEndDate]);
+
+  const totalDaysInData = useMemo(() => {
+    if (!countsData) return 0;
+    const days = new Set(countsData.data.map((d) => d.timestamp.split('T')[0]));
+    return days.size;
+  }, [countsData]);
+
+  // Recalculate budget when thresholds change
+  const budget = useMemo(() => {
+    if (!countsData || !thresholdRecommendation) return null;
+    return recalculateBudget(
+      countsData.data,
+      thresholdRecommendation.onThreshold,
+      campaignInput.totalBudget,
+      campaignDays,
+      totalDaysInData
+    );
+  }, [countsData, thresholdRecommendation, campaignInput.totalBudget, campaignDays, totalDaysInData]);
+
+  const isModified = originalThresholdRecommendation && thresholdRecommendation && (
+    thresholdRecommendation.onThreshold !== originalThresholdRecommendation.onThreshold ||
+    thresholdRecommendation.offThreshold !== originalThresholdRecommendation.offThreshold ||
+    thresholdRecommendation.consecutiveHours !== originalThresholdRecommendation.consecutiveHours
+  );
+
+  function applyThresholdEdit(field: 'on' | 'off' | 'consecutive', rawValue: string) {
+    if (!thresholdRecommendation || !countsData) return;
+    const value = Number(rawValue);
+    if (isNaN(value) || value < 0) return;
+
+    const updated = { ...thresholdRecommendation };
+    if (field === 'on') updated.onThreshold = value;
+    if (field === 'off') updated.offThreshold = value;
+    if (field === 'consecutive') updated.consecutiveHours = value;
+
+    const newBudget = recalculateBudget(
+      countsData.data,
+      updated.onThreshold,
+      campaignInput.totalBudget,
+      campaignDays,
+      totalDaysInData
+    );
+    updated.estimatedTrendDays = newBudget.estimatedTrendDays;
+    updated.recommendedMaxDailySpend = newBudget.recommendedMaxDailySpend;
+
+    setThresholdRecommendation(updated);
+  }
 
   if (isLoading) {
     return (
@@ -91,7 +160,7 @@ export default function ThresholdAnalysisStep() {
     );
   }
 
-  if (!thresholdRecommendation || !countsData) return null;
+  if (!thresholdRecommendation || !countsData || !budget) return null;
 
   const confidenceBadge = {
     high: 'success' as const,
@@ -108,26 +177,74 @@ export default function ThresholdAnalysisStep() {
         </Badge>
       </div>
       <p className="text-x-gray text-sm mb-6">
-        Grok has analyzed the data and recommends the following thresholds.
+        Grok has analyzed the data and recommends the following thresholds. Edit values below to adjust.
       </p>
 
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-black rounded-xl p-4 border border-[#00BA7C]/30">
           <p className="text-[#00BA7C] text-xs font-medium mb-1">ON Threshold</p>
-          <p className="text-white text-2xl font-bold">{formatNumber(thresholdRecommendation.onThreshold)}</p>
-          <p className="text-x-gray text-xs">posts/hour</p>
+          <input
+            type="number"
+            value={editOn}
+            onChange={(e) => setEditOn(e.target.value)}
+            onBlur={() => applyThresholdEdit('on', editOn)}
+            onKeyDown={(e) => { if (e.key === 'Enter') applyThresholdEdit('on', editOn); }}
+            className="bg-transparent text-white text-2xl font-bold w-full outline-none border-b border-[#00BA7C]/40 focus:border-[#00BA7C] pb-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+          <p className="text-x-gray text-xs mt-1">posts/hour</p>
+          {originalThresholdRecommendation && (
+            <p className="text-x-gray text-[10px] mt-1">Grok: {formatNumber(originalThresholdRecommendation.onThreshold)}</p>
+          )}
         </div>
         <div className="bg-black rounded-xl p-4 border border-[#F4212E]/30">
           <p className="text-[#F4212E] text-xs font-medium mb-1">OFF Threshold</p>
-          <p className="text-white text-2xl font-bold">{formatNumber(thresholdRecommendation.offThreshold)}</p>
-          <p className="text-x-gray text-xs">posts/hour</p>
+          <input
+            type="number"
+            value={editOff}
+            onChange={(e) => setEditOff(e.target.value)}
+            onBlur={() => applyThresholdEdit('off', editOff)}
+            onKeyDown={(e) => { if (e.key === 'Enter') applyThresholdEdit('off', editOff); }}
+            className="bg-transparent text-white text-2xl font-bold w-full outline-none border-b border-[#F4212E]/40 focus:border-[#F4212E] pb-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+          <p className="text-x-gray text-xs mt-1">posts/hour</p>
+          {originalThresholdRecommendation && (
+            <p className="text-x-gray text-[10px] mt-1">Grok: {formatNumber(originalThresholdRecommendation.offThreshold)}</p>
+          )}
         </div>
         <div className="bg-black rounded-xl p-4 border border-x-border">
           <p className="text-x-blue text-xs font-medium mb-1">Consecutive Hours</p>
-          <p className="text-white text-2xl font-bold">{thresholdRecommendation.consecutiveHours}</p>
-          <p className="text-x-gray text-xs">before trigger</p>
+          <input
+            type="number"
+            value={editConsecutive}
+            onChange={(e) => setEditConsecutive(e.target.value)}
+            onBlur={() => applyThresholdEdit('consecutive', editConsecutive)}
+            onKeyDown={(e) => { if (e.key === 'Enter') applyThresholdEdit('consecutive', editConsecutive); }}
+            className="bg-transparent text-white text-2xl font-bold w-full outline-none border-b border-x-blue/40 focus:border-x-blue pb-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+          <p className="text-x-gray text-xs mt-1">before trigger</p>
+          {originalThresholdRecommendation && (
+            <p className="text-x-gray text-[10px] mt-1">Grok: {originalThresholdRecommendation.consecutiveHours}</p>
+          )}
         </div>
       </div>
+
+      {isModified && (
+        <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-[#1D9BF0]/10 border border-[#1D9BF0]/20">
+          <span className="text-x-blue text-xs">Thresholds modified from Grok recommendation. Budget recalculated.</span>
+          <button
+            onClick={() => {
+              if (!originalThresholdRecommendation) return;
+              setThresholdRecommendation(originalThresholdRecommendation);
+              setEditOn(String(originalThresholdRecommendation.onThreshold));
+              setEditOff(String(originalThresholdRecommendation.offThreshold));
+              setEditConsecutive(String(originalThresholdRecommendation.consecutiveHours));
+            }}
+            className="text-x-blue text-xs underline hover:text-x-blue/80 ml-auto whitespace-nowrap"
+          >
+            Reset to Grok
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-black rounded-xl p-4 border border-x-blue/30">
@@ -136,13 +253,19 @@ export default function ThresholdAnalysisStep() {
         </div>
         <div className="bg-black rounded-xl p-4 border border-x-blue/30">
           <p className="text-x-blue text-xs font-medium mb-1">Est. Trend Days</p>
-          <p className="text-white text-2xl font-bold">{thresholdRecommendation.estimatedTrendDays}</p>
+          <p className="text-white text-2xl font-bold">{budget.estimatedTrendDays}</p>
           <p className="text-x-gray text-xs">days above threshold</p>
+          {isModified && originalThresholdRecommendation && (
+            <p className="text-x-gray text-[10px] mt-1">Grok: {originalThresholdRecommendation.estimatedTrendDays}</p>
+          )}
         </div>
         <div className="bg-black rounded-xl p-4 border border-[#00BA7C]/30">
           <p className="text-[#00BA7C] text-xs font-medium mb-1">Max Daily Spend</p>
-          <p className="text-white text-2xl font-bold">{formatCurrency(thresholdRecommendation.recommendedMaxDailySpend)}</p>
+          <p className="text-white text-2xl font-bold">{formatCurrency(budget.recommendedMaxDailySpend)}</p>
           <p className="text-x-gray text-xs">recommended cap</p>
+          {isModified && originalThresholdRecommendation && (
+            <p className="text-x-gray text-[10px] mt-1">Grok: {formatCurrency(originalThresholdRecommendation.recommendedMaxDailySpend)}</p>
+          )}
         </div>
       </div>
 
