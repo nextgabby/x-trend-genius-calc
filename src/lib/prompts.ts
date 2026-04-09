@@ -239,3 +239,160 @@ Respond ONLY with valid JSON in this exact format:
   "budgetReasoning": "explanation of how you estimated trend days and derived the daily spend recommendation"
 }`;
 }
+
+export interface SpikeContext {
+  timestamp: string;
+  peakVolume: number;
+  avgVolume: number;
+  medianVolume: number;
+  spikeDurationHours: number;
+  surroundingHours: { timestamp: string; count: number }[];
+  eventHours: { timestamp: string; count: number }[];
+}
+
+export function buildTrendExplanationPrompt(
+  query: string,
+  spike: SpikeContext
+): string {
+  const multiplier = spike.avgVolume > 0 ? (spike.peakVolume / spike.avgVolume).toFixed(1) : 'N/A';
+  const medianMultiplier = spike.medianVolume > 0 ? (spike.peakVolume / spike.medianVolume).toFixed(1) : 'N/A';
+
+  const surroundingLines = spike.surroundingHours
+    .map((h) => `  ${h.timestamp}: ${h.count} posts/hr${h.count >= spike.peakVolume ? ' ← PEAK' : ''}`)
+    .join('\n');
+
+  const eventLines = spike.eventHours
+    .map((h) => `  ${h.timestamp}: ${h.count} posts/hr`)
+    .join('\n');
+
+  return `You are an expert on X (Twitter) trends and real-time events. Today's date is ${new Date().toISOString().split('T')[0]}.
+
+The following X search query experienced a significant volume spike. You have been given the ACTUAL hourly volume data surrounding this spike. Use this data to ground your analysis — do NOT guess or fabricate the volume pattern.
+
+Query: ${query}
+
+SPIKE SUMMARY:
+- Peak Timestamp: ${spike.timestamp}
+- Peak Volume: ${spike.peakVolume} posts/hour
+- 7-Day Average Volume: ${spike.avgVolume} posts/hour
+- 7-Day Median Volume: ${spike.medianVolume} posts/hour
+- Spike Magnitude: ${multiplier}x the average, ${medianMultiplier}x the median
+- Spike Duration: ${spike.spikeDurationHours} consecutive hour(s) above threshold
+
+HOURS IN THIS SPIKE EVENT (consecutive above-threshold hours):
+${eventLines}
+
+SURROUNDING 24-HOUR WINDOW (±12 hours around peak for context):
+${surroundingLines}
+
+YOUR TASK:
+Based on the query keywords, the spike timestamp, and the volume pattern above, identify the most likely real-world cause(s) of this spike.
+
+ANALYSIS GUIDELINES:
+1. Look at the TIMING — when did the spike start ramping up? When did it peak? How fast did it decay? This timing pattern is a strong signal (e.g., a live game has a multi-hour ramp with a sharp peak at the end; a breaking news story has a sudden spike that decays slowly).
+2. Look at the QUERY KEYWORDS — what topics/events do these keywords relate to? What was happening in the real world around this timestamp that matches these keywords?
+3. Look at the DAY OF WEEK and TIME OF DAY — primetime TV, weekend sports, weekday news cycles all have distinct patterns.
+4. Be specific — cite actual events, game results, show premieres, announcements, or news stories. Include dates and times when possible.
+
+CRITICAL — HONESTY OVER SPECULATION:
+- If you recognize the event with high confidence (e.g., a well-known scheduled game, a major news event), say so clearly.
+- If the timing and keywords suggest a likely cause but you're not 100% certain of the specific event, explain your reasoning and set confidence to "medium".
+- If you genuinely do not know what caused this spike, say "Unable to determine the specific cause" and set confidence to "low". Do NOT invent plausible-sounding events.
+- NEVER fabricate game scores, specific news headlines, or event details you are not confident about.
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "explanation": "detailed explanation grounded in the data and timing pattern above",
+  "keyEvents": ["specific verified event 1", "specific verified event 2"],
+  "confidence": "high" | "medium" | "low"
+}`;
+}
+
+export function buildThresholdRecommendationPrompt(
+  query: string,
+  onThreshold: number,
+  offThreshold: number,
+  stats: StatsResult
+): string {
+  const totalHours = stats.totalDataPoints;
+  const hoursAboveOn = stats.totalDataPoints > 0 ? Math.round((stats.p90 >= onThreshold ? 0.1 : 0) * totalHours) : 0; // approximate — will be passed explicitly
+
+  const dowLines = Object.entries(stats.dayOfWeekAvg)
+    .map(([day, avg]) => `  ${day}: ${avg} posts/hour`)
+    .join('\n');
+
+  const hourEntries = Object.entries(stats.hourOfDayAvg).sort((a, b) => b[1] - a[1]);
+  const peakHourLines = hourEntries.slice(0, 6).map(([h, avg]) => `  ${h}:00 UTC: ${avg}`).join('\n');
+  const quietHourLines = hourEntries.slice(-6).map(([h, avg]) => `  ${h}:00 UTC: ${avg}`).join('\n');
+
+  return `You are an expert Advertising Trigger System analyst for X (Twitter) Trend Genius campaigns.
+
+A user wants to evaluate whether their ON/OFF thresholds are well-calibrated for the following query. You have been given 7 days of ACTUAL hourly volume statistics from X. Base your recommendation ENTIRELY on this data.
+
+Query: ${query}
+Current ON Threshold: ${onThreshold} posts/hour
+Current OFF Threshold: ${offThreshold} posts/hour
+
+7-DAY HOURLY VOLUME STATISTICS (${stats.totalDaysInData} days, ${stats.totalDataPoints} hours of data):
+- Mean: ${stats.mean} posts/hour
+- Median: ${stats.median} posts/hour
+- Standard Deviation: ${stats.stdDev}
+- Min: ${stats.min} posts/hour
+- Max: ${stats.max} posts/hour
+- 25th percentile (P25): ${stats.p25} posts/hour
+- 75th percentile (P75): ${stats.p75} posts/hour
+- 90th percentile (P90): ${stats.p90} posts/hour
+- 95th percentile (P95): ${stats.p95} posts/hour
+- 99th percentile (P99): ${stats.p99} posts/hour
+- Quiet hours (below 25% of mean): ${stats.quietHourPct}%
+
+Day-of-Week Average Volume:
+${dowLines}
+
+Peak Hours (UTC, top 6):
+${peakHourLines}
+Quietest Hours (UTC, bottom 6):
+${quietHourLines}
+
+Spike Analysis (spikes = contiguous periods above P90):
+- Distinct spike events: ${stats.spikeCount}
+- Average spike duration: ${stats.avgSpikeDurationHours} hours
+- Calendar days with spike activity: ${stats.spikeDays} out of ${stats.totalDaysInData} days
+
+YOUR TASK:
+Evaluate the user's ON and OFF thresholds against this data and recommend whether to raise, lower, or keep them.
+
+ANALYSIS RULES — USE THE DATA:
+1. Compare the ON threshold to the statistical distribution:
+   - ON at or below P75 (${stats.p75}) → TOO LOW. The trigger would fire during normal above-average volume, not genuine spikes. Recommend raising.
+   - ON between P75 and P90 (${stats.p75}–${stats.p90}) → LIKELY TOO LOW for most use cases. This captures the top 10-25% of hours, which is routine elevated volume, not spikes.
+   - ON between P90 and P95 (${stats.p90}–${stats.p95}) → GOOD RANGE. Captures only the top 5-10% of hours — genuine spike territory.
+   - ON above P95 (${stats.p95}) → Aggressive but valid if the user only wants to catch extreme spikes. Note that they may miss moderate trending moments.
+   - ON above P99 (${stats.p99}) or above Max (${stats.max}) → TOO HIGH. The trigger would rarely or never fire. Recommend lowering.
+
+2. Check the OFF threshold:
+   - OFF should be 25-40% below ON to provide hysteresis and prevent rapid on/off cycling.
+   - OFF should be above the median (${stats.median}) — otherwise the trigger stays "on" during normal volume.
+   - If OFF is too close to ON (less than 15% gap), warn about rapid cycling.
+
+3. Use the spike analysis to assess real-world behavior:
+   - ${stats.spikeCount} spike events in ${stats.totalDaysInData} days gives a frequency of ~${stats.totalDaysInData > 0 ? (stats.spikeCount / stats.totalDaysInData).toFixed(2) : 0} spikes/day.
+   - If the user's ON threshold would trigger much more or less frequently than P90-based spikes, explain the difference.
+
+4. If recommending a change, suggest SPECIFIC threshold values derived from the percentiles above, rounded to clean numbers.
+
+DETERMINISM & ACCURACY (CRITICAL):
+- Every number you cite must come from the statistics above. Do NOT invent, round differently, or approximate percentile values.
+- Your recommendation must be fully explainable from the data — no subjective opinions without data backing.
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "action": "raise" | "lower" | "keep",
+  "reasoning": "detailed explanation referencing specific percentile values and spike data from above",
+  "suggestedOnThreshold": <number or null if keeping>,
+  "suggestedOffThreshold": <number or null if keeping>,
+  "onThresholdPercentile": "approximately what percentile the current ON threshold falls at",
+  "hoursAboveOnPct": "what percentage of hours in the data would be above the ON threshold",
+  "confidence": "high" | "medium" | "low"
+}`;
+}

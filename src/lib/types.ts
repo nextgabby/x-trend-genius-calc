@@ -63,6 +63,32 @@ export interface WizardState {
   error: string | null;
 }
 
+export interface TrendExplanation {
+  explanation: string;
+  keyEvents: string[];
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface ThresholdRecommendationResult {
+  action: 'raise' | 'lower' | 'keep';
+  reasoning: string;
+  suggestedOnThreshold: number | null;
+  suggestedOffThreshold: number | null;
+  onThresholdPercentile: string;
+  hoursAboveOnPct: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface ThresholdHit {
+  timestamp: string;
+  count: number;
+  explanation?: string;
+  keyEvents?: string[];
+  confidence?: 'high' | 'medium' | 'low';
+  isLoading?: boolean;
+  error?: string;
+}
+
 export interface StatsResult {
   mean: number;
   median: number;

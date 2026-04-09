@@ -7,6 +7,7 @@ import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import ThresholdChart from '@/components/charts/ThresholdChart';
 import { formatNumber, formatDate, recalculateBudget } from '@/lib/utils';
+import { generateDocx } from '@/lib/generate-docx';
 
 function formatCurrency(n: number): string {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
@@ -93,38 +94,86 @@ export default function ResultsStep() {
 
   if (!thresholdRecommendation || !countsData || !keywordAnalysis || !budget) return null;
 
-  const configSummary: Record<string, unknown> = {
-    handle: `@${campaignInput.handle}`,
-    campaignDates: `${campaignInput.campaignStartDate} to ${campaignInput.campaignEndDate}`,
-    query: approvedQuery,
-    ...(keywordAnalysis.lookbackQuery && keywordAnalysis.lookbackQuery !== approvedQuery
-      ? { lookbackQuery: keywordAnalysis.lookbackQuery }
-      : {}),
-    seasonality: keywordAnalysis.seasonality,
-    onThreshold: thresholdRecommendation.onThreshold,
-    offThreshold: thresholdRecommendation.offThreshold,
-    consecutiveHours: thresholdRecommendation.consecutiveHours,
-    confidence: thresholdRecommendation.confidence,
-    avgHourlyVolume: thresholdRecommendation.avgHourlyVolume,
-    medianHourlyVolume: thresholdRecommendation.medianHourlyVolume,
-    totalBudget: campaignInput.totalBudget,
-    estimatedTrendDays: budget.estimatedTrendDays,
-    recommendedMaxDailySpend: budget.recommendedMaxDailySpend,
-    ...(isModified && originalThresholdRecommendation ? {
-      grokOriginal: {
-        onThreshold: originalThresholdRecommendation.onThreshold,
-        offThreshold: originalThresholdRecommendation.offThreshold,
-        consecutiveHours: originalThresholdRecommendation.consecutiveHours,
-        estimatedTrendDays: originalThresholdRecommendation.estimatedTrendDays,
-        recommendedMaxDailySpend: originalThresholdRecommendation.recommendedMaxDailySpend,
-      },
-    } : {}),
-  };
+  function buildPlainTextSummary(): string {
+    const sep = '========================================';
+    const subsep = '----------------------------------------';
+    const lines: string[] = [
+      'TREND GENIUS CONFIGURATION',
+      sep,
+      `Handle: @${campaignInput.handle}`,
+      `Campaign: ${formatDate(campaignInput.campaignStartDate)} — ${formatDate(campaignInput.campaignEndDate)}`,
+      `Search Query: ${approvedQuery}`,
+    ];
 
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(JSON.stringify(configSummary, null, 2));
+    if (keywordAnalysis!.lookbackQuery && keywordAnalysis!.lookbackQuery !== approvedQuery) {
+      lines.push(`Lookback Query: ${keywordAnalysis!.lookbackQuery}`);
+    }
+    lines.push(`Seasonality: ${keywordAnalysis!.seasonality}`);
+
+    lines.push('', 'THRESHOLDS', subsep);
+    lines.push(`ON Threshold: ${formatNumber(thresholdRecommendation!.onThreshold)} posts/hour`);
+    lines.push(`OFF Threshold: ${formatNumber(thresholdRecommendation!.offThreshold)} posts/hour`);
+    lines.push(`Consecutive Hours: ${thresholdRecommendation!.consecutiveHours}`);
+    lines.push(`Confidence: ${thresholdRecommendation!.confidence}`);
+
+    lines.push('', 'VOLUME STATISTICS', subsep);
+    lines.push(`Avg Hourly Volume: ${formatNumber(thresholdRecommendation!.avgHourlyVolume)}/hr`);
+    lines.push(`Median Hourly Volume: ${formatNumber(thresholdRecommendation!.medianHourlyVolume)}/hr`);
+    lines.push(`Std Deviation: ${formatNumber(thresholdRecommendation!.stdDeviation)}`);
+
+    lines.push('', 'BUDGET', subsep);
+    lines.push(`Total Budget: ${formatCurrency(campaignInput.totalBudget)}`);
+    lines.push(`Est. Trend Days: ${budget!.estimatedTrendDays}`);
+    lines.push(`Max Daily Spend: ${formatCurrency(budget!.recommendedMaxDailySpend)}`);
+
+    lines.push('', 'ANALYSIS', subsep);
+    lines.push(thresholdRecommendation!.reasoning);
+    lines.push('');
+    lines.push(`Budget Allocation: ${thresholdRecommendation!.budgetReasoning}`);
+
+    if (thresholdRecommendation!.peakHours.length > 0) {
+      lines.push('', `Peak Hours: ${thresholdRecommendation!.peakHours.join(', ')}`);
+    }
+
+    if (isModified && originalThresholdRecommendation) {
+      lines.push('', 'GROK ORIGINAL RECOMMENDATION', subsep);
+      lines.push(`ON Threshold: ${formatNumber(originalThresholdRecommendation.onThreshold)} posts/hour`);
+      lines.push(`OFF Threshold: ${formatNumber(originalThresholdRecommendation.offThreshold)} posts/hour`);
+      lines.push(`Consecutive Hours: ${originalThresholdRecommendation.consecutiveHours}`);
+      lines.push(`Est. Trend Days: ${originalThresholdRecommendation.estimatedTrendDays}`);
+      lines.push(`Max Daily Spend: ${formatCurrency(originalThresholdRecommendation.recommendedMaxDailySpend)}`);
+    }
+
+    return lines.join('\n');
+  }
+
+  const handleCopyText = async () => {
+    await navigator.clipboard.writeText(buildPlainTextSummary());
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDownloadDocx = async () => {
+    const blob = await generateDocx({
+      handle: campaignInput.handle,
+      campaignStartDate: campaignInput.campaignStartDate,
+      campaignEndDate: campaignInput.campaignEndDate,
+      query: approvedQuery,
+      lookbackQuery: keywordAnalysis!.lookbackQuery,
+      seasonality: keywordAnalysis!.seasonality,
+      thresholds: thresholdRecommendation!,
+      originalThresholds: originalThresholdRecommendation,
+      isModified: !!isModified,
+      totalBudget: campaignInput.totalBudget,
+      estimatedTrendDays: budget!.estimatedTrendDays,
+      recommendedMaxDailySpend: budget!.recommendedMaxDailySpend,
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `trend-genius-${campaignInput.handle}-config.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleExportCSV = () => {
@@ -324,8 +373,11 @@ export default function ResultsStep() {
       </Card>
 
       <div className="flex flex-wrap gap-3 justify-center">
-        <Button onClick={handleCopy} variant="primary" size="lg">
-          {copied ? 'Copied!' : 'Copy Config JSON'}
+        <Button onClick={handleCopyText} variant="primary" size="lg">
+          {copied ? 'Copied!' : 'Copy to Clipboard'}
+        </Button>
+        <Button onClick={handleDownloadDocx} variant="primary" size="lg">
+          Download as Word Doc
         </Button>
         <Button onClick={handleExportCSV} variant="secondary" size="lg">
           Export Data CSV
