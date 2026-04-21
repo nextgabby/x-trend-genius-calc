@@ -27,9 +27,22 @@ export async function POST(request: Request) {
     // Compute full stats server-side from raw data
     const stats = computeStats(data);
 
-    console.log(`[Stats] mean=${stats.mean}, median=${stats.median}, P90=${stats.p90}, P95=${stats.p95}, spikes=${stats.spikeCount}`);
+    // Compute exact hours above thresholds from raw data
+    const hoursAboveOn = data.filter((d) => d.count >= onThreshold).length;
+    const hoursAboveOff = data.filter((d) => d.count >= offThreshold).length;
 
-    const prompt = buildThresholdRecommendationPrompt(query, onThreshold, offThreshold, stats);
+    // Determine the actual date range of the data
+    const timestamps = data.map((d) => d.timestamp).sort();
+    const dataStartDate = timestamps[0];
+    const dataEndDate = timestamps[timestamps.length - 1];
+
+    console.log(`[Stats] mean=${stats.mean}, median=${stats.median}, P90=${stats.p90}, P95=${stats.p95}, spikes=${stats.spikeCount}`);
+    console.log(`[Thresholds] hoursAboveOn=${hoursAboveOn}/${data.length} (${(hoursAboveOn/data.length*100).toFixed(1)}%), hoursAboveOff=${hoursAboveOff}/${data.length}`);
+
+    const prompt = buildThresholdRecommendationPrompt(
+      query, onThreshold, offThreshold, stats,
+      hoursAboveOn, hoursAboveOff, dataStartDate, dataEndDate
+    );
     const result = await callGrok<ThresholdRecommendationResult>(prompt);
 
     console.log(`[Result] action: ${result.action}, confidence: ${result.confidence}`);

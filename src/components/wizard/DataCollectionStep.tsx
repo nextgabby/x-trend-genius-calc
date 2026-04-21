@@ -95,12 +95,12 @@ export default function DataCollectionStep() {
 
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-black rounded-xl p-3 border border-x-border">
-          <p className="text-x-gray text-xs">Total Posts</p>
-          <p className="text-white text-lg font-bold">{formatNumber(countsData.totalTweets)}</p>
+          <p className="text-x-gray text-xs">Hours Collected</p>
+          <p className="text-white text-lg font-bold">{formatNumber(countsData.data.length)}</p>
         </div>
         <div className="bg-black rounded-xl p-3 border border-x-border">
-          <p className="text-x-gray text-xs">Data Points</p>
-          <p className="text-white text-lg font-bold">{formatNumber(countsData.data.length)}</p>
+          <p className="text-x-gray text-xs">Total Post Volume</p>
+          <p className="text-white text-lg font-bold">{formatNumber(countsData.totalTweets)}</p>
         </div>
         <div className="bg-black rounded-xl p-3 border border-x-border">
           <p className="text-x-gray text-xs">Period</p>

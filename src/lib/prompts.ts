@@ -288,11 +288,25 @@ ${surroundingLines}
 YOUR TASK:
 Based on the query keywords, the spike timestamp, and the volume pattern above, identify the most likely real-world cause(s) of this spike.
 
-ANALYSIS GUIDELINES:
-1. Look at the TIMING — when did the spike start ramping up? When did it peak? How fast did it decay? This timing pattern is a strong signal (e.g., a live game has a multi-hour ramp with a sharp peak at the end; a breaking news story has a sudden spike that decays slowly).
+STEP 1 — TOPIC CLASSIFICATION:
+First, classify the query topic to frame your analysis:
+- "evergreen" — Celebrities, brands, general interest (e.g., Zendaya, Nike). Spikes are driven by specific events: movie releases, awards, fashion moments, scandals, viral moments. Each spike has a distinct cause.
+- "seasonal" — Topics tied to a recurring season (e.g., NFL players, March Madness). During the active season, spikes often correspond to game days, matchups, big plays, or controversy. In the offseason, any spike is unusual and likely driven by trades, arrests, draft news, or off-field events.
+- "event-driven" — Tied to a specific event (e.g., "Super Bowl 2026"). Spikes correspond to event milestones: ticket sales, lineup announcements, the event itself, aftermath.
+- "niche" — Low-volume specialized topics where even small bumps look like spikes in the data.
+
+State your classification — it helps determine what kind of causes to look for.
+
+STEP 2 — SPIKE PATTERN ANALYSIS:
+1. Look at the TIMING — when did the spike start ramping up? When did it peak? How fast did it decay? This timing pattern is a strong signal:
+   - Live sports game: multi-hour ramp, sharp peak at game end or during a key play, rapid decay after
+   - Breaking news: sudden spike (0 → peak in 1-2 hours), slow multi-hour decay
+   - Scheduled event (awards, premiere): gradual ramp starting hours before, peak during the event, moderate decay
+   - Viral moment: sudden spike that may sustain or have multiple peaks as the content spreads
 2. Look at the QUERY KEYWORDS — what topics/events do these keywords relate to? What was happening in the real world around this timestamp that matches these keywords?
-3. Look at the DAY OF WEEK and TIME OF DAY — primetime TV, weekend sports, weekday news cycles all have distinct patterns.
-4. Be specific — cite actual events, game results, show premieres, announcements, or news stories. Include dates and times when possible.
+3. Look at the DAY OF WEEK and TIME OF DAY — primetime TV (8-11 PM ET), weekend sports, weekday news cycles all have distinct patterns. Use the timestamp to determine this.
+4. For seasonal topics, consider the schedule: Was there a game/match/episode on this date? Is this a regular-schedule spike or an anomaly?
+5. Be specific — cite actual events, game results, show premieres, announcements, or news stories. Include dates and times when possible.
 
 CRITICAL — HONESTY OVER SPECULATION:
 - If you recognize the event with high confidence (e.g., a well-known scheduled game, a major news event), say so clearly.
@@ -312,10 +326,16 @@ export function buildThresholdRecommendationPrompt(
   query: string,
   onThreshold: number,
   offThreshold: number,
-  stats: StatsResult
+  stats: StatsResult,
+  hoursAboveOn: number,
+  hoursAboveOff: number,
+  dataStartDate: string,
+  dataEndDate: string
 ): string {
   const totalHours = stats.totalDataPoints;
-  const hoursAboveOn = stats.totalDataPoints > 0 ? Math.round((stats.p90 >= onThreshold ? 0.1 : 0) * totalHours) : 0; // approximate — will be passed explicitly
+  const pctAboveOn = totalHours > 0 ? ((hoursAboveOn / totalHours) * 100).toFixed(1) : '0';
+  const pctAboveOff = totalHours > 0 ? ((hoursAboveOff / totalHours) * 100).toFixed(1) : '0';
+  const onOffGapPct = onThreshold > 0 ? (((onThreshold - offThreshold) / onThreshold) * 100).toFixed(0) : '0';
 
   const dowLines = Object.entries(stats.dayOfWeekAvg)
     .map(([day, avg]) => `  ${day}: ${avg} posts/hour`)
@@ -325,13 +345,19 @@ export function buildThresholdRecommendationPrompt(
   const peakHourLines = hourEntries.slice(0, 6).map(([h, avg]) => `  ${h}:00 UTC: ${avg}`).join('\n');
   const quietHourLines = hourEntries.slice(-6).map(([h, avg]) => `  ${h}:00 UTC: ${avg}`).join('\n');
 
-  return `You are an expert Advertising Trigger System analyst for X (Twitter) Trend Genius campaigns.
+  return `You are an expert Advertising Trigger System analyst for X (Twitter) Trend Genius campaigns. Today's date is ${new Date().toISOString().split('T')[0]}.
 
 A user wants to evaluate whether their ON/OFF thresholds are well-calibrated for the following query. You have been given 7 days of ACTUAL hourly volume statistics from X. Base your recommendation ENTIRELY on this data.
 
 Query: ${query}
 Current ON Threshold: ${onThreshold} posts/hour
 Current OFF Threshold: ${offThreshold} posts/hour
+Data Window: ${dataStartDate} to ${dataEndDate}
+
+EXACT THRESHOLD HIT COUNTS (computed from raw data — these are facts, not estimates):
+- Hours above ON threshold (${onThreshold}): ${hoursAboveOn} out of ${totalHours} hours (${pctAboveOn}%)
+- Hours above OFF threshold (${offThreshold}): ${hoursAboveOff} out of ${totalHours} hours (${pctAboveOff}%)
+- ON-OFF gap: ${onOffGapPct}%
 
 7-DAY HOURLY VOLUME STATISTICS (${stats.totalDaysInData} days, ${stats.totalDataPoints} hours of data):
 - Mean: ${stats.mean} posts/hour
@@ -359,40 +385,58 @@ Spike Analysis (spikes = contiguous periods above P90):
 - Average spike duration: ${stats.avgSpikeDurationHours} hours
 - Calendar days with spike activity: ${stats.spikeDays} out of ${stats.totalDaysInData} days
 
-YOUR TASK:
-Evaluate the user's ON and OFF thresholds against this data and recommend whether to raise, lower, or keep them.
+STEP 1 — TOPIC CLASSIFICATION (CRITICAL — DO THIS FIRST):
+Before evaluating thresholds, classify the query topic. This determines whether the 7-day data window is representative:
 
-ANALYSIS RULES — USE THE DATA:
-1. Compare the ON threshold to the statistical distribution:
-   - ON at or below P75 (${stats.p75}) → TOO LOW. The trigger would fire during normal above-average volume, not genuine spikes. Recommend raising.
-   - ON between P75 and P90 (${stats.p75}–${stats.p90}) → LIKELY TOO LOW for most use cases. This captures the top 10-25% of hours, which is routine elevated volume, not spikes.
-   - ON between P90 and P95 (${stats.p90}–${stats.p95}) → GOOD RANGE. Captures only the top 5-10% of hours — genuine spike territory.
-   - ON above P95 (${stats.p95}) → Aggressive but valid if the user only wants to catch extreme spikes. Note that they may miss moderate trending moments.
-   - ON above P99 (${stats.p99}) or above Max (${stats.max}) → TOO HIGH. The trigger would rarely or never fire. Recommend lowering.
+- "evergreen" — Celebrities, brands, general interest topics (e.g., Zendaya, Nike, Taylor Swift). Conversation volume is relatively steady year-round, with spikes driven by unpredictable events (movie releases, scandals, awards shows, product drops). A 7-day window is generally representative of baseline volume. Spikes are genuinely noteworthy.
 
-2. Check the OFF threshold:
-   - OFF should be 25-40% below ON to provide hysteresis and prevent rapid on/off cycling.
-   - OFF should be above the median (${stats.median}) — otherwise the trigger stays "on" during normal volume.
-   - If OFF is too close to ON (less than 15% gap), warn about rapid cycling.
+- "seasonal" — Topics tied to a recurring season or schedule (e.g., NFL players, March Madness, ski resorts, Christmas shopping). Volume follows a predictable annual cycle — high during the active season, very low in the offseason. A 7-day window is ONLY representative if it falls within the active season. If the data window (${dataStartDate} to ${dataEndDate}) falls during the OFFSEASON for this topic, you MUST warn that the data is not representative and that thresholds calibrated now will be wrong for the active season. Be specific about when the active season is.
 
-3. Use the spike analysis to assess real-world behavior:
-   - ${stats.spikeCount} spike events in ${stats.totalDaysInData} days gives a frequency of ~${stats.totalDaysInData > 0 ? (stats.spikeCount / stats.totalDaysInData).toFixed(2) : 0} spikes/day.
-   - If the user's ON threshold would trigger much more or less frequently than P90-based spikes, explain the difference.
+- "event-driven" — Topics tied to a specific upcoming or recent event (e.g., "Super Bowl 2026", "Met Gala 2026"). Volume spikes sharply around the event and is low otherwise. If the data window doesn't overlap the event, warn accordingly.
 
-4. If recommending a change, suggest SPECIFIC threshold values derived from the percentiles above, rounded to clean numbers.
+- "niche/low-volume" — Very specialized topics that naturally have low conversation volume at all times. Low volume doesn't mean the thresholds are wrong — it may just be a small-audience topic.
+
+State your classification and explain how it affects your confidence in the 7-day data window being representative.
+
+STEP 2 — THRESHOLD EVALUATION (using the data + topic context):
+1. Use the EXACT hours-above-ON count (${hoursAboveOn}/${totalHours} = ${pctAboveOn}%) as the primary signal. Do NOT recalculate this — it is computed from raw data.
+   - >15% of hours above ON → TOO LOW. Trigger fires too often. Recommend raising.
+   - 5-10% of hours above ON → GOOD RANGE for genuine spikes.
+   - 2-5% → Aggressive but valid — only catches the biggest spikes.
+   - <1% and Max > ON → Tight calibration, acceptable if they want only extreme spikes.
+   - 0% and ON > Max (${stats.max}) → TOO HIGH. Trigger can never fire on recent data. IF the topic is seasonal/event-driven and data window is offseason, say so rather than just recommending "lower". IF the topic is evergreen and the threshold is above the max, then recommend lowering.
+
+2. Compare ON to the percentile distribution to give context:
+   - Where does ON (${onThreshold}) fall? Below P75 (${stats.p75})? Between P90 (${stats.p90}) and P95 (${stats.p95})? Above P99 (${stats.p99})?
+   - The ideal range is typically P90–P95 for most campaigns.
+
+3. Check the OFF threshold:
+   - OFF should be 25-40% below ON for proper hysteresis.
+   - Current gap is ${onOffGapPct}%. If <15%, warn about rapid cycling.
+   - OFF should be above the median (${stats.median}) to avoid staying "on" during normal volume.
+
+4. If recommending a change, suggest SPECIFIC threshold values derived from the percentiles, rounded to clean numbers.
+
+STEP 3 — SEASONAL/TIMING CAVEAT:
+If you classified the topic as seasonal or event-driven AND the data window appears to be offseason or pre/post-event:
+- Explicitly state: "This 7-day window (${dataStartDate} to ${dataEndDate}) appears to fall during the [offseason/pre-event period] for this topic."
+- Explain what volume the user should expect during the active period.
+- If possible, suggest they re-test during the active season for more representative data.
+- Set confidence to "low" since the data is not representative.
 
 DETERMINISM & ACCURACY (CRITICAL):
-- Every number you cite must come from the statistics above. Do NOT invent, round differently, or approximate percentile values.
+- Every number you cite must come from the statistics above. Do NOT invent or approximate values.
+- Use the exact hoursAboveOn count (${hoursAboveOn}) — do not recalculate it.
 - Your recommendation must be fully explainable from the data — no subjective opinions without data backing.
 
 Respond ONLY with valid JSON in this exact format:
 {
   "action": "raise" | "lower" | "keep",
-  "reasoning": "detailed explanation referencing specific percentile values and spike data from above",
+  "reasoning": "detailed explanation that starts with topic classification, then references specific data points, percentiles, and exact threshold hit counts",
   "suggestedOnThreshold": <number or null if keeping>,
   "suggestedOffThreshold": <number or null if keeping>,
   "onThresholdPercentile": "approximately what percentile the current ON threshold falls at",
-  "hoursAboveOnPct": "what percentage of hours in the data would be above the ON threshold",
+  "hoursAboveOnPct": "${pctAboveOn}%",
   "confidence": "high" | "medium" | "low"
 }`;
 }
