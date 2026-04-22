@@ -117,6 +117,8 @@ function computeDailySummaries(
 
 export default function ThresholdAnalysisTool() {
   const [query, setQuery] = useState('');
+  const [campaignStartDate, setCampaignStartDate] = useState('');
+  const [campaignEndDate, setCampaignEndDate] = useState('');
   const [onThreshold, setOnThreshold] = useState('');
   const [offThreshold, setOffThreshold] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -189,6 +191,8 @@ export default function ThresholdAnalysisTool() {
           query: query.trim(),
           onThreshold: onVal,
           offThreshold: offVal,
+          campaignStartDate: campaignStartDate || undefined,
+          campaignEndDate: campaignEndDate || undefined,
           data: hourlyData,
         }),
       });
@@ -234,6 +238,8 @@ export default function ThresholdAnalysisTool() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: query.trim(),
+          campaignStartDate: campaignStartDate || undefined,
+          campaignEndDate: campaignEndDate || undefined,
           spike: {
             timestamp: hit.timestamp,
             peakVolume: hit.count,
@@ -309,6 +315,31 @@ export default function ThresholdAnalysisTool() {
               rows={3}
               className="w-full bg-black border border-x-border rounded-xl px-4 py-3 text-white text-sm placeholder-x-gray focus:outline-none focus:ring-2 focus:ring-x-blue focus:border-transparent resize-none"
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-x-lightgray mb-1">
+                Campaign Start
+              </label>
+              <input
+                type="date"
+                value={campaignStartDate}
+                onChange={(e) => setCampaignStartDate(e.target.value)}
+                className="w-full bg-black border border-x-border rounded-xl px-4 py-3 text-white text-sm placeholder-x-gray focus:outline-none focus:ring-2 focus:ring-x-blue focus:border-transparent [color-scheme:dark]"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-x-lightgray mb-1">
+                Campaign End
+              </label>
+              <input
+                type="date"
+                value={campaignEndDate}
+                onChange={(e) => setCampaignEndDate(e.target.value)}
+                className="w-full bg-black border border-x-border rounded-xl px-4 py-3 text-white text-sm placeholder-x-gray focus:outline-none focus:ring-2 focus:ring-x-blue focus:border-transparent [color-scheme:dark]"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

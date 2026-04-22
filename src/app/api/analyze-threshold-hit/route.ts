@@ -7,7 +7,12 @@ import type { TrendExplanation } from '@/lib/types';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { query, spike } = body as { query: string; spike: SpikeContext };
+    const { query, spike, campaignStartDate, campaignEndDate } = body as {
+      query: string;
+      spike: SpikeContext;
+      campaignStartDate?: string;
+      campaignEndDate?: string;
+    };
 
     if (!query || !spike?.timestamp || spike.peakVolume == null) {
       return NextResponse.json(
@@ -19,7 +24,7 @@ export async function POST(request: Request) {
     console.log(`\n=== /api/analyze-threshold-hit ===`);
     console.log(`[Input] query: "${query.substring(0, 80)}...", peak: ${spike.timestamp}, volume: ${spike.peakVolume}, duration: ${spike.spikeDurationHours}h`);
 
-    const prompt = buildTrendExplanationPrompt(query, spike);
+    const prompt = buildTrendExplanationPrompt(query, spike, campaignStartDate, campaignEndDate);
     const result = await callGrok<TrendExplanation>(prompt);
 
     console.log(`[Result] confidence: ${result.confidence}, events: ${result.keyEvents?.length ?? 0}`);

@@ -7,10 +7,12 @@ import type { HourlyDataPoint, ThresholdRecommendationResult } from '@/lib/types
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { query, onThreshold, offThreshold, data } = body as {
+    const { query, onThreshold, offThreshold, campaignStartDate, campaignEndDate, data } = body as {
       query: string;
       onThreshold: number;
       offThreshold: number;
+      campaignStartDate?: string;
+      campaignEndDate?: string;
       data: HourlyDataPoint[];
     };
 
@@ -41,7 +43,8 @@ export async function POST(request: Request) {
 
     const prompt = buildThresholdRecommendationPrompt(
       query, onThreshold, offThreshold, stats,
-      hoursAboveOn, hoursAboveOff, dataStartDate, dataEndDate
+      hoursAboveOn, hoursAboveOff, dataStartDate, dataEndDate,
+      campaignStartDate, campaignEndDate
     );
     const result = await callGrok<ThresholdRecommendationResult>(prompt);
 

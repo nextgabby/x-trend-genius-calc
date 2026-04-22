@@ -252,7 +252,9 @@ export interface SpikeContext {
 
 export function buildTrendExplanationPrompt(
   query: string,
-  spike: SpikeContext
+  spike: SpikeContext,
+  campaignStartDate?: string,
+  campaignEndDate?: string
 ): string {
   const multiplier = spike.avgVolume > 0 ? (spike.peakVolume / spike.avgVolume).toFixed(1) : 'N/A';
   const medianMultiplier = spike.medianVolume > 0 ? (spike.peakVolume / spike.medianVolume).toFixed(1) : 'N/A';
@@ -269,7 +271,7 @@ export function buildTrendExplanationPrompt(
 
 The following X search query experienced a significant volume spike. You have been given the ACTUAL hourly volume data surrounding this spike. Use this data to ground your analysis — do NOT guess or fabricate the volume pattern.
 
-Query: ${query}
+Query: ${query}${campaignStartDate && campaignEndDate ? `\nTargeted Campaign Period: ${campaignStartDate} to ${campaignEndDate}` : ''}
 
 SPIKE SUMMARY:
 - Peak Timestamp: ${spike.timestamp}
@@ -288,14 +290,16 @@ ${surroundingLines}
 YOUR TASK:
 Based on the query keywords, the spike timestamp, and the volume pattern above, identify the most likely real-world cause(s) of this spike.
 
-STEP 1 — TOPIC CLASSIFICATION:
-First, classify the query topic to frame your analysis:
-- "evergreen" — Celebrities, brands, general interest (e.g., Zendaya, Nike). Spikes are driven by specific events: movie releases, awards, fashion moments, scandals, viral moments. Each spike has a distinct cause.
-- "seasonal" — Topics tied to a recurring season (e.g., NFL players, March Madness). During the active season, spikes often correspond to game days, matchups, big plays, or controversy. In the offseason, any spike is unusual and likely driven by trades, arrests, draft news, or off-field events.
-- "event-driven" — Tied to a specific event (e.g., "Super Bowl 2026"). Spikes correspond to event milestones: ticket sales, lineup announcements, the event itself, aftermath.
-- "niche" — Low-volume specialized topics where even small bumps look like spikes in the data.
+STEP 1 — TOPIC ANALYSIS:
+First, identify the topic's conversation drivers to narrow down what kind of event could cause this spike. Many topics have MULTIPLE drivers on different cycles — list all that apply:
 
-State your classification — it helps determine what kind of causes to look for.
+Examples:
+- "Messi" → (1) MLS game days (seasonal, Feb–Oct), (2) World Cup / Copa America (event-driven), (3) endorsements / personal life / viral moments (evergreen). A spike on a Saturday evening during MLS season is likely a game. A spike in November 2026 could be World Cup. A spike on a random Tuesday might be an endorsement or interview going viral.
+- "LeBron" → (1) NBA games (seasonal, Oct–Jun), (2) off-court business / media (evergreen). During playoffs, spikes are almost certainly game-related.
+- "Zendaya" → Primarily evergreen (movies, fashion, awards, relationships). Spikes are event-driven but unpredictable.
+- "NFL Draft" → Purely event-driven — spikes correspond to draft weekend.
+
+Based on the spike timestamp (${spike.timestamp}), determine which driver is most likely active and what kind of events to look for.${campaignStartDate && campaignEndDate ? `\n\nThe user's campaign targets ${campaignStartDate} to ${campaignEndDate}. Frame your explanation in terms of whether this type of spike is something the user should expect during their campaign period (e.g., "this spike was caused by a regular-season MLS game — expect similar spikes throughout your campaign" vs. "this spike was driven by a one-off viral moment — don't count on this recurring").` : ''}
 
 STEP 2 — SPIKE PATTERN ANALYSIS:
 1. Look at the TIMING — when did the spike start ramping up? When did it peak? How fast did it decay? This timing pattern is a strong signal:
@@ -303,9 +307,9 @@ STEP 2 — SPIKE PATTERN ANALYSIS:
    - Breaking news: sudden spike (0 → peak in 1-2 hours), slow multi-hour decay
    - Scheduled event (awards, premiere): gradual ramp starting hours before, peak during the event, moderate decay
    - Viral moment: sudden spike that may sustain or have multiple peaks as the content spreads
-2. Look at the QUERY KEYWORDS — what topics/events do these keywords relate to? What was happening in the real world around this timestamp that matches these keywords?
-3. Look at the DAY OF WEEK and TIME OF DAY — primetime TV (8-11 PM ET), weekend sports, weekday news cycles all have distinct patterns. Use the timestamp to determine this.
-4. For seasonal topics, consider the schedule: Was there a game/match/episode on this date? Is this a regular-schedule spike or an anomaly?
+2. Look at the QUERY KEYWORDS — what topics/events do these keywords relate to? Cross-reference with the active driver(s) you identified in Step 1.
+3. Look at the DAY OF WEEK and TIME OF DAY — primetime TV (8-11 PM ET), weekend sports, weekday news cycles all have distinct patterns. Use the timestamp to determine this. For athletes, check if this aligns with their league's typical game schedule.
+4. For multi-driver topics, consider which driver best explains the timing. A Messi spike on a Wednesday afternoon is unlikely to be a game — look for news, transfer rumors, or viral content instead.
 5. Be specific — cite actual events, game results, show premieres, announcements, or news stories. Include dates and times when possible.
 
 CRITICAL — HONESTY OVER SPECULATION:
@@ -330,7 +334,9 @@ export function buildThresholdRecommendationPrompt(
   hoursAboveOn: number,
   hoursAboveOff: number,
   dataStartDate: string,
-  dataEndDate: string
+  dataEndDate: string,
+  campaignStartDate?: string,
+  campaignEndDate?: string
 ): string {
   const totalHours = stats.totalDataPoints;
   const pctAboveOn = totalHours > 0 ? ((hoursAboveOn / totalHours) * 100).toFixed(1) : '0';
@@ -352,7 +358,7 @@ A user wants to evaluate whether their ON/OFF thresholds are well-calibrated for
 Query: ${query}
 Current ON Threshold: ${onThreshold} posts/hour
 Current OFF Threshold: ${offThreshold} posts/hour
-Data Window: ${dataStartDate} to ${dataEndDate}
+Data Window (last 7 days): ${dataStartDate} to ${dataEndDate}${campaignStartDate && campaignEndDate ? `\nTargeted Campaign Period: ${campaignStartDate} to ${campaignEndDate}` : '\nTargeted Campaign Period: Not specified'}
 
 EXACT THRESHOLD HIT COUNTS (computed from raw data — these are facts, not estimates):
 - Hours above ON threshold (${onThreshold}): ${hoursAboveOn} out of ${totalHours} hours (${pctAboveOn}%)
@@ -385,18 +391,25 @@ Spike Analysis (spikes = contiguous periods above P90):
 - Average spike duration: ${stats.avgSpikeDurationHours} hours
 - Calendar days with spike activity: ${stats.spikeDays} out of ${stats.totalDaysInData} days
 
-STEP 1 — TOPIC CLASSIFICATION (CRITICAL — DO THIS FIRST):
-Before evaluating thresholds, classify the query topic. This determines whether the 7-day data window is representative:
+STEP 1 — TOPIC & TIMING ANALYSIS (CRITICAL — DO THIS FIRST):
+Before evaluating thresholds, analyze the query topic to determine whether the 7-day data window (${dataStartDate} to ${dataEndDate}) is representative of the volume the campaign will actually see.
 
-- "evergreen" — Celebrities, brands, general interest topics (e.g., Zendaya, Nike, Taylor Swift). Conversation volume is relatively steady year-round, with spikes driven by unpredictable events (movie releases, scandals, awards shows, product drops). A 7-day window is generally representative of baseline volume. Spikes are genuinely noteworthy.
+Many topics have MULTIPLE conversation drivers that operate on different cycles. Do NOT force a single label — instead, identify ALL relevant patterns and determine which one(s) are active in this data window.
 
-- "seasonal" — Topics tied to a recurring season or schedule (e.g., NFL players, March Madness, ski resorts, Christmas shopping). Volume follows a predictable annual cycle — high during the active season, very low in the offseason. A 7-day window is ONLY representative if it falls within the active season. If the data window (${dataStartDate} to ${dataEndDate}) falls during the OFFSEASON for this topic, you MUST warn that the data is not representative and that thresholds calibrated now will be wrong for the active season. Be specific about when the active season is.
+Examples of multi-pattern topics:
+- "Messi" → (1) MLS regular season games (seasonal, Feb–Oct), (2) World Cup (event-driven, every 4 years), (3) Copa America (event-driven), (4) endorsement deals / personal life / viral moments (evergreen baseline). If the data window is April, MLS is in-season so this data captures game-day spikes and is representative for an MLS-focused campaign. But if the campaign targets World Cup Messi conversation, this data is NOT representative.
+- "LeBron James" → (1) NBA season (seasonal, Oct–Jun), (2) off-court business / media / cultural moments (evergreen). April data captures playoff-season volume — great for NBA campaigns, but the evergreen baseline may differ in the offseason.
+- "Taylor Swift" → (1) tour dates (event-driven), (2) album releases (event-driven), (3) general celebrity conversation (evergreen). Data representativeness depends on whether a tour or release is happening in this window.
 
-- "event-driven" — Topics tied to a specific upcoming or recent event (e.g., "Super Bowl 2026", "Met Gala 2026"). Volume spikes sharply around the event and is low otherwise. If the data window doesn't overlap the event, warn accordingly.
+For your analysis, answer these questions:
+1. What are the topic's conversation drivers? List them with their cycle type (seasonal/event-driven/evergreen).
+2. Which driver(s) are ACTIVE during the data window (${dataStartDate} to ${dataEndDate})?
+3. ${campaignStartDate && campaignEndDate
+    ? `The user's campaign runs ${campaignStartDate} to ${campaignEndDate}. Compare this to the data window. Are the same drivers active during both periods? If the campaign targets a different season or event than what the data window captures (e.g., data is from the offseason but the campaign runs during the active season), the thresholds calibrated from this data will be WRONG. Be explicit about this mismatch.`
+    : `No campaign dates were provided. Assess whether the data window reflects a "normal", "elevated", or "quiet" period for this topic, and note which campaign timing would make these thresholds appropriate vs. inappropriate.`}
+4. If the data window and campaign period have a seasonal mismatch, do NOT just recommend "lower" or "raise" based on current data — instead warn that the data is not representative and explain what volume range the user should expect during their campaign period.
 
-- "niche/low-volume" — Very specialized topics that naturally have low conversation volume at all times. Low volume doesn't mean the thresholds are wrong — it may just be a small-audience topic.
-
-State your classification and explain how it affects your confidence in the 7-day data window being representative.
+Use the actual volume data to corroborate your assessment — if you think this should be an active period but the mean is very low, or you think it's offseason but there are clear spikes, say so and reconcile the discrepancy.
 
 STEP 2 — THRESHOLD EVALUATION (using the data + topic context):
 1. Use the EXACT hours-above-ON count (${hoursAboveOn}/${totalHours} = ${pctAboveOn}%) as the primary signal. Do NOT recalculate this — it is computed from raw data.
@@ -417,12 +430,16 @@ STEP 2 — THRESHOLD EVALUATION (using the data + topic context):
 
 4. If recommending a change, suggest SPECIFIC threshold values derived from the percentiles, rounded to clean numbers.
 
-STEP 3 — SEASONAL/TIMING CAVEAT:
-If you classified the topic as seasonal or event-driven AND the data window appears to be offseason or pre/post-event:
-- Explicitly state: "This 7-day window (${dataStartDate} to ${dataEndDate}) appears to fall during the [offseason/pre-event period] for this topic."
-- Explain what volume the user should expect during the active period.
-- If possible, suggest they re-test during the active season for more representative data.
-- Set confidence to "low" since the data is not representative.
+STEP 3 — DATA REPRESENTATIVENESS CAVEAT:
+Based on your topic analysis in Step 1, assess whether these thresholds will hold up during the actual campaign:
+${campaignStartDate && campaignEndDate
+    ? `The campaign runs ${campaignStartDate} to ${campaignEndDate}. Your assessment MUST compare the data window to the campaign period:
+- If both periods fall in the SAME seasonal context (e.g., both during NFL season): confidence "high" — the data is representative.
+- If the data window is OFFSEASON but the campaign runs during the ACTIVE season: confidence "low". Do NOT recommend threshold changes based on offseason data. Instead, warn: "These thresholds are calibrated against offseason data (${dataStartDate} to ${dataEndDate}), but your campaign runs during [active period] when volume will be significantly higher. Re-run this analysis during the active season or use the Campaign Setup wizard with historical seasonal data."
+- If the data window is ACTIVE season but the campaign runs in the OFFSEASON: warn that campaign volume will be lower and thresholds may need to be lowered.
+- If transitional (e.g., data from preseason, campaign spans full season): confidence "medium", note that thresholds may need adjustment as the season progresses.`
+    : `No campaign dates specified. State whether the current data window appears to be an active, quiet, or transitional period for this topic, so the user can decide if these thresholds are appropriate for their intended campaign timing.`}
+- If the topic has multiple drivers, assess which driver the campaign period aligns with and evaluate accordingly.
 
 DETERMINISM & ACCURACY (CRITICAL):
 - Every number you cite must come from the statistics above. Do NOT invent or approximate values.
