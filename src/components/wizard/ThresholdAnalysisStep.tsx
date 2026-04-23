@@ -7,7 +7,7 @@ import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ThresholdChart from '@/components/charts/ThresholdChart';
-import { formatNumber, recalculateBudget } from '@/lib/utils';
+import { formatNumber, recalculateBudget, findThresholdForTrendDays } from '@/lib/utils';
 
 function formatCurrency(n: number): string {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
@@ -34,6 +34,7 @@ export default function ThresholdAnalysisStep() {
   const [editOn, setEditOn] = useState<string>('');
   const [editOff, setEditOff] = useState<string>('');
   const [editConsecutive, setEditConsecutive] = useState<string>('');
+  const [editTrendDays, setEditTrendDays] = useState<string>('');
 
   // Sync local edit state when recommendation loads
   useEffect(() => {
@@ -107,6 +108,13 @@ export default function ThresholdAnalysisStep() {
     );
   }, [countsData, thresholdRecommendation, campaignInput.totalBudget, campaignDays, totalDaysInData]);
 
+  // Sync trend days edit field when budget recalculates (from threshold edits)
+  useEffect(() => {
+    if (budget) {
+      setEditTrendDays(String(budget.estimatedTrendDays));
+    }
+  }, [budget]);
+
   const isModified = originalThresholdRecommendation && thresholdRecommendation && (
     thresholdRecommendation.onThreshold !== originalThresholdRecommendation.onThreshold ||
     thresholdRecommendation.offThreshold !== originalThresholdRecommendation.offThreshold ||
@@ -132,6 +140,39 @@ export default function ThresholdAnalysisStep() {
     );
     updated.estimatedTrendDays = newBudget.estimatedTrendDays;
     updated.recommendedMaxDailySpend = newBudget.recommendedMaxDailySpend;
+
+    setThresholdRecommendation(updated);
+  }
+
+  function applyTrendDaysEdit(rawValue: string) {
+    if (!thresholdRecommendation || !countsData) return;
+    const value = Number(rawValue);
+    if (isNaN(value) || value < 1) return;
+
+    // Find the ON threshold that produces the desired trend days
+    const newOn = findThresholdForTrendDays(
+      countsData.data,
+      value,
+      campaignDays,
+      totalDaysInData
+    );
+
+    // Maintain the ON/OFF ratio from current thresholds
+    const currentRatio = thresholdRecommendation.onThreshold > 0
+      ? thresholdRecommendation.offThreshold / thresholdRecommendation.onThreshold
+      : 0.65;
+    const newOff = Math.round(newOn * currentRatio);
+
+    const updated = {
+      ...thresholdRecommendation,
+      onThreshold: newOn,
+      offThreshold: newOff,
+      estimatedTrendDays: value,
+      recommendedMaxDailySpend: Math.round(campaignInput.totalBudget / value),
+    };
+
+    setEditOn(String(newOn));
+    setEditOff(String(newOff));
 
     setThresholdRecommendation(updated);
   }
@@ -253,9 +294,17 @@ export default function ThresholdAnalysisStep() {
         </div>
         <div className="bg-black rounded-xl p-4 border border-x-blue/30">
           <p className="text-x-blue text-xs font-medium mb-1">Est. Trend Days</p>
-          <p className="text-white text-2xl font-bold">{budget.estimatedTrendDays}</p>
-          <p className="text-x-gray text-xs">days above threshold</p>
-          {isModified && originalThresholdRecommendation && (
+          <input
+            type="number"
+            min="1"
+            value={editTrendDays}
+            onChange={(e) => setEditTrendDays(e.target.value)}
+            onBlur={() => applyTrendDaysEdit(editTrendDays)}
+            onKeyDown={(e) => { if (e.key === 'Enter') applyTrendDaysEdit(editTrendDays); }}
+            className="bg-transparent text-white text-2xl font-bold w-full outline-none border-b border-x-blue/40 focus:border-x-blue pb-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+          <p className="text-x-gray text-xs mt-1">days above threshold</p>
+          {originalThresholdRecommendation && (
             <p className="text-x-gray text-[10px] mt-1">Grok: {originalThresholdRecommendation.estimatedTrendDays}</p>
           )}
         </div>

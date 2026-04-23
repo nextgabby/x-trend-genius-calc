@@ -180,6 +180,35 @@ export function recalculateBudget(
   return { estimatedTrendDays, recommendedMaxDailySpend };
 }
 
+export function findThresholdForTrendDays(
+  data: HourlyDataPoint[],
+  desiredTrendDays: number,
+  campaignDays: number,
+  totalDaysInData: number
+): number {
+  // How many days in the historical data need to be "above threshold" days
+  const targetDaysAbove = Math.max(1, Math.round((desiredTrendDays / campaignDays) * totalDaysInData));
+
+  // Find each day's maximum hourly volume
+  const dailyMaxes: Record<string, number> = {};
+  for (const d of data) {
+    const day = d.timestamp.split('T')[0];
+    dailyMaxes[day] = Math.max(dailyMaxes[day] || 0, d.count);
+  }
+
+  // Sort descending — the Nth value is the threshold that gives us N days above
+  const sortedMaxes = Object.values(dailyMaxes).sort((a, b) => b - a);
+
+  if (targetDaysAbove >= sortedMaxes.length) {
+    // Want more trend days than we have data days — use the lowest daily max
+    return sortedMaxes[sortedMaxes.length - 1];
+  }
+
+  // Threshold = the daily max of the targetDaysAbove-th day (0-indexed)
+  // This ensures exactly targetDaysAbove days have at least one hour >= threshold
+  return sortedMaxes[targetDaysAbove - 1];
+}
+
 export function formatNumber(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;

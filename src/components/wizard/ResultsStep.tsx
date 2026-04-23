@@ -6,7 +6,7 @@ import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import ThresholdChart from '@/components/charts/ThresholdChart';
-import { formatNumber, formatDate, recalculateBudget } from '@/lib/utils';
+import { formatNumber, formatDate, recalculateBudget, findThresholdForTrendDays } from '@/lib/utils';
 import { generateDocx } from '@/lib/generate-docx';
 
 function formatCurrency(n: number): string {
@@ -31,6 +31,7 @@ export default function ResultsStep() {
   const [editOn, setEditOn] = useState<string>('');
   const [editOff, setEditOff] = useState<string>('');
   const [editConsecutive, setEditConsecutive] = useState<string>('');
+  const [editTrendDays, setEditTrendDays] = useState<string>('');
 
   useEffect(() => {
     if (thresholdRecommendation) {
@@ -63,6 +64,12 @@ export default function ResultsStep() {
     );
   }, [countsData, thresholdRecommendation, campaignInput.totalBudget, campaignDays, totalDaysInData]);
 
+  useEffect(() => {
+    if (budget) {
+      setEditTrendDays(String(budget.estimatedTrendDays));
+    }
+  }, [budget]);
+
   const isModified = originalThresholdRecommendation && thresholdRecommendation && (
     thresholdRecommendation.onThreshold !== originalThresholdRecommendation.onThreshold ||
     thresholdRecommendation.offThreshold !== originalThresholdRecommendation.offThreshold ||
@@ -88,6 +95,37 @@ export default function ResultsStep() {
     );
     updated.estimatedTrendDays = newBudget.estimatedTrendDays;
     updated.recommendedMaxDailySpend = newBudget.recommendedMaxDailySpend;
+
+    setThresholdRecommendation(updated);
+  }
+
+  function applyTrendDaysEdit(rawValue: string) {
+    if (!thresholdRecommendation || !countsData) return;
+    const value = Number(rawValue);
+    if (isNaN(value) || value < 1) return;
+
+    const newOn = findThresholdForTrendDays(
+      countsData.data,
+      value,
+      campaignDays,
+      totalDaysInData
+    );
+
+    const currentRatio = thresholdRecommendation.onThreshold > 0
+      ? thresholdRecommendation.offThreshold / thresholdRecommendation.onThreshold
+      : 0.65;
+    const newOff = Math.round(newOn * currentRatio);
+
+    const updated = {
+      ...thresholdRecommendation,
+      onThreshold: newOn,
+      offThreshold: newOff,
+      estimatedTrendDays: value,
+      recommendedMaxDailySpend: Math.round(campaignInput.totalBudget / value),
+    };
+
+    setEditOn(String(newOn));
+    setEditOff(String(newOff));
 
     setThresholdRecommendation(updated);
   }
@@ -308,9 +346,17 @@ export default function ResultsStep() {
           </div>
           <div className="bg-black rounded-xl p-4 border border-x-blue/30">
             <p className="text-x-blue text-xs font-medium mb-1">Est. Trend Days</p>
-            <p className="text-white text-2xl font-bold">{budget.estimatedTrendDays}</p>
-            <p className="text-x-gray text-xs">days above threshold</p>
-            {isModified && originalThresholdRecommendation && (
+            <input
+              type="number"
+              min="1"
+              value={editTrendDays}
+              onChange={(e) => setEditTrendDays(e.target.value)}
+              onBlur={() => applyTrendDaysEdit(editTrendDays)}
+              onKeyDown={(e) => { if (e.key === 'Enter') applyTrendDaysEdit(editTrendDays); }}
+              className="bg-transparent text-white text-2xl font-bold w-full outline-none border-b border-x-blue/40 focus:border-x-blue pb-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+            <p className="text-x-gray text-xs mt-1">days above threshold</p>
+            {originalThresholdRecommendation && (
               <p className="text-x-gray text-[10px] mt-1">Grok: {originalThresholdRecommendation.estimatedTrendDays}</p>
             )}
           </div>
