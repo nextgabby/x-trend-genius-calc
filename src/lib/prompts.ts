@@ -240,6 +240,13 @@ Respond ONLY with valid JSON in this exact format:
 }`;
 }
 
+export interface TweetSampleForPrompt {
+  text: string;
+  created_at: string;
+  retweets?: number;
+  likes?: number;
+}
+
 export interface SpikeContext {
   timestamp: string;
   peakVolume: number;
@@ -248,6 +255,7 @@ export interface SpikeContext {
   spikeDurationHours: number;
   surroundingHours: { timestamp: string; count: number }[];
   eventHours: { timestamp: string; count: number }[];
+  tweetSamples?: TweetSampleForPrompt[];
 }
 
 export function buildTrendExplanationPrompt(
@@ -267,9 +275,28 @@ export function buildTrendExplanationPrompt(
     .map((h) => `  ${h.timestamp}: ${h.count} posts/hr`)
     .join('\n');
 
+  // Build tweet samples section
+  let tweetSamplesSection = '';
+  if (spike.tweetSamples && spike.tweetSamples.length > 0) {
+    const tweetLines = spike.tweetSamples
+      .map((t, i) => {
+        const engagement = t.retweets != null || t.likes != null
+          ? ` [${t.retweets ?? 0} RTs, ${t.likes ?? 0} likes]`
+          : '';
+        return `  ${i + 1}. (${t.created_at})${engagement}\n     "${t.text}"`;
+      })
+      .join('\n\n');
+
+    tweetSamplesSection = `
+
+ACTUAL TWEET SAMPLES FROM THIS SPIKE (sorted by relevance):
+These are real posts from X during the spike window. Use these to determine what people were ACTUALLY talking about.
+${tweetLines}`;
+  }
+
   return `You are an expert on X (Twitter) trends and real-time events. Today's date is ${new Date().toISOString().split('T')[0]}.
 
-The following X search query experienced a significant volume spike. You have been given the ACTUAL hourly volume data surrounding this spike. Use this data to ground your analysis — do NOT guess or fabricate the volume pattern.
+The following X search query experienced a significant volume spike. You have been given the ACTUAL hourly volume data AND a sample of REAL TWEETS posted during this spike. Your analysis MUST be grounded in the actual tweet content — do NOT guess or speculate about what caused the spike.
 
 Query: ${query}${campaignStartDate && campaignEndDate ? `\nTargeted Campaign Period: ${campaignStartDate} to ${campaignEndDate}` : ''}
 
@@ -285,43 +312,38 @@ HOURS IN THIS SPIKE EVENT (consecutive above-threshold hours):
 ${eventLines}
 
 SURROUNDING 24-HOUR WINDOW (±12 hours around peak for context):
-${surroundingLines}
+${surroundingLines}${tweetSamplesSection}
 
 YOUR TASK:
-Based on the query keywords, the spike timestamp, and the volume pattern above, identify the most likely real-world cause(s) of this spike.
+Analyze the actual tweet content above to determine what specifically caused this spike. The tweets ARE your primary evidence — read them carefully and identify the common themes, events, or topics being discussed.
 
-STEP 1 — TOPIC ANALYSIS:
-First, identify the topic's conversation drivers to narrow down what kind of event could cause this spike. Many topics have MULTIPLE drivers on different cycles — list all that apply:
+STEP 1 — TWEET CONTENT ANALYSIS (PRIMARY):
+${spike.tweetSamples && spike.tweetSamples.length > 0
+  ? `Read through the tweet samples provided above and identify:
+1. What specific event, news, or topic are people discussing? Look for common themes across multiple tweets.
+2. Are people reacting to a live event (game, show, announcement), sharing news, or discussing something viral?
+3. What specific details can you extract? (e.g., game scores, show names, announcement details, news headlines)
+4. Summarize the ACTUAL conversation in the tweets — do not generalize beyond what the tweets say.`
+  : `No tweet samples were available for this spike. Without actual tweet content, your analysis will be limited to timing patterns and general topic knowledge. Be upfront about this limitation.`}
 
-Examples:
-- "Messi" → (1) MLS game days (seasonal, Feb–Oct), (2) World Cup / Copa America (event-driven), (3) endorsements / personal life / viral moments (evergreen). A spike on a Saturday evening during MLS season is likely a game. A spike in November 2026 could be World Cup. A spike on a random Tuesday might be an endorsement or interview going viral.
-- "LeBron" → (1) NBA games (seasonal, Oct–Jun), (2) off-court business / media (evergreen). During playoffs, spikes are almost certainly game-related.
-- "Zendaya" → Primarily evergreen (movies, fashion, awards, relationships). Spikes are event-driven but unpredictable.
-- "NFL Draft" → Purely event-driven — spikes correspond to draft weekend.
+STEP 2 — TIMING PATTERN (SECONDARY):
+Use the volume timing pattern to corroborate your tweet content analysis:
+1. When did the spike start ramping up? When did it peak? How fast did it decay?
+2. Does the timing pattern match the type of event the tweets describe? (live sports = multi-hour ramp + sharp peak, breaking news = sudden spike, etc.)
+3. Look at the DAY OF WEEK and TIME OF DAY for additional context.${campaignStartDate && campaignEndDate ? `\n\nThe user's campaign targets ${campaignStartDate} to ${campaignEndDate}. Based on what you found in the tweets, note whether this type of spike is likely to recur during the campaign period.` : ''}
 
-Based on the spike timestamp (${spike.timestamp}), determine which driver is most likely active and what kind of events to look for.${campaignStartDate && campaignEndDate ? `\n\nThe user's campaign targets ${campaignStartDate} to ${campaignEndDate}. Frame your explanation in terms of whether this type of spike is something the user should expect during their campaign period (e.g., "this spike was caused by a regular-season MLS game — expect similar spikes throughout your campaign" vs. "this spike was driven by a one-off viral moment — don't count on this recurring").` : ''}
-
-STEP 2 — SPIKE PATTERN ANALYSIS:
-1. Look at the TIMING — when did the spike start ramping up? When did it peak? How fast did it decay? This timing pattern is a strong signal:
-   - Live sports game: multi-hour ramp, sharp peak at game end or during a key play, rapid decay after
-   - Breaking news: sudden spike (0 → peak in 1-2 hours), slow multi-hour decay
-   - Scheduled event (awards, premiere): gradual ramp starting hours before, peak during the event, moderate decay
-   - Viral moment: sudden spike that may sustain or have multiple peaks as the content spreads
-2. Look at the QUERY KEYWORDS — what topics/events do these keywords relate to? Cross-reference with the active driver(s) you identified in Step 1.
-3. Look at the DAY OF WEEK and TIME OF DAY — primetime TV (8-11 PM ET), weekend sports, weekday news cycles all have distinct patterns. Use the timestamp to determine this. For athletes, check if this aligns with their league's typical game schedule.
-4. For multi-driver topics, consider which driver best explains the timing. A Messi spike on a Wednesday afternoon is unlikely to be a game — look for news, transfer rumors, or viral content instead.
-5. Be specific — cite actual events, game results, show premieres, announcements, or news stories. Include dates and times when possible.
-
-CRITICAL — HONESTY OVER SPECULATION:
-- If you recognize the event with high confidence (e.g., a well-known scheduled game, a major news event), say so clearly.
-- If the timing and keywords suggest a likely cause but you're not 100% certain of the specific event, explain your reasoning and set confidence to "medium".
-- If you genuinely do not know what caused this spike, say "Unable to determine the specific cause" and set confidence to "low". Do NOT invent plausible-sounding events.
-- NEVER fabricate game scores, specific news headlines, or event details you are not confident about.
+CRITICAL RULES — NEVER GUESS:
+- Your explanation MUST be based on what you can actually see in the tweet samples. Quote or reference specific tweets when possible.
+- If the tweet samples clearly show a specific event or topic, explain it with high confidence.
+- If the tweets are ambiguous or point to multiple possible causes, say so honestly and set confidence to "medium".
+- If no tweet samples were available, or the tweets don't reveal a clear cause, say "Unable to determine the specific cause of this spike from the available data" and set confidence to "low". Do NOT invent plausible-sounding events or speculate.
+- NEVER fabricate game scores, specific news headlines, or event details.
+- NEVER list generic possible causes (like "could be an album release, tour, or award show"). Either you can see it in the tweets or you can't.
 
 Respond ONLY with valid JSON in this exact format:
 {
-  "explanation": "detailed explanation grounded in the data and timing pattern above",
-  "keyEvents": ["specific verified event 1", "specific verified event 2"],
+  "explanation": "explanation grounded in the actual tweet content and timing data",
+  "keyEvents": ["specific event identified from tweets"],
   "confidence": "high" | "medium" | "low"
 }`;
 }
