@@ -47,10 +47,20 @@ NICHE FOCUS (CRITICAL):
 - If the keywords indicate a general topic (just "world cup" or "NFL"), THEN cast a wide net with all variations.
 - The trigger query should match the ACTUAL conversation niche the advertiser wants to ride.
 
-WIDE NET WITHIN THE NICHE:
-- Within the identified niche, cast a WIDE net: brainstorm ALL common variations, abbreviations, hashtags, related terms, and alternate phrasings people actually use on X.
-- Include hashtag variants (with and without #) where appropriate.
-- Consider event-specific terms based on the campaign dates (year-specific hashtags, host cities, tournament phases, etc.).
+WIDE NET WITHIN THE NICHE — KEYWORD COVERAGE CHECKLIST:
+Within the identified niche, systematically work through EACH of these 9 categories and include all relevant terms. Skip a category only if it genuinely doesn't apply.
+
+1. OFFICIAL NAMES — Full official name of the team/org/event and all recognized variations (e.g., "Canada men's national soccer team", "Canadian men's national team", "Canada National Team")
+2. ABBREVIATIONS & CODES — Standard abbreviations fans and media actually use (e.g., CanMNT, USMNT, FIFA, UEFA, NFL)
+3. HASHTAGS — Both official and fan-community hashtags, with and without # (e.g., #CanadaSoccer, CanadaSoccer, #CanMNT, #WC2026). Include hashtags people actually use on X, not ones you invent.
+4. CASUAL/FAN PHRASING — How real fans talk about this on X (e.g., "Team Canada soccer", "Canada soccer match", "Canadian soccer game"). Think about how someone would tweet about this, not how a press release would describe it.
+5. OPPONENT/MATCHUP TERMS — If this is a competition, include "Team A vs Team B" pairings for confirmed opponents (e.g., "Canada vs Switzerland", "Canada vs Qatar"). Use the campaign dates to determine which specific matchups are relevant.
+6. EVENT-SPECIFIC TERMS — Year-specific terms, host city names, tournament phases, venue names that are relevant to the campaign window (e.g., "World Cup 2026", "BMO Field", "group stage")
+7. SPORT/CATEGORY CONTEXT — Add the sport or category qualifier to prevent false matches (e.g., "Canada soccer" not just "Canada", "Team Canada soccer" not just "Team Canada" which could be hockey/Olympics/curling)
+8. GOVERNING BODY & LEAGUE TERMS — Relevant governing bodies, leagues, or organizing entities that fans reference (e.g., FIFA, CONCACAF, MLS)
+9. RELATED COMMUNITY TERMS — Adjacent fan communities or related teams whose conversation overlaps with your niche (e.g., for Canada WC: USMNT, "Mexico national team" — only include if the campaign brief suggests broader coverage)
+
+After working through the checklist, review the full list and remove any term that fails the SPECIFICITY test above.
 
 SPECIFICITY IS CRITICAL:
 - Every keyword in the query must be SPECIFIC to the topic. Do NOT include generic words that have broad meanings outside the topic. For example, "final" alone could mean anything — use "World Cup final" instead. "Goal" alone is too generic — use "soccer goal" or "#WorldCupGoal". "Match" alone is ambiguous — use "World Cup match".
