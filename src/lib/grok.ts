@@ -1,5 +1,5 @@
 const GROK_API_URL = 'https://api.x.ai/v1/chat/completions';
-const GROK_MODEL = 'grok-3';
+const GROK_MODEL = 'grok-4.3';
 
 interface GrokMessage {
   role: 'system' | 'user' | 'assistant';

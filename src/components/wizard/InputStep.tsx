@@ -13,6 +13,7 @@ export default function InputStep() {
   const [keywordInput, setKeywordInput] = useState(campaignInput.keywords.join(', '));
   const [budget, setBudget] = useState(campaignInput.totalBudget ? campaignInput.totalBudget.toString() : '');
   const [useExact, setUseExact] = useState(campaignInput.useExactKeywords);
+  const [includeNegations, setIncludeNegations] = useState(campaignInput.includeNegations);
 
   const isValid = handle.trim() && startDate && endDate && keywordInput.trim() && budget && Number(budget) > 0;
 
@@ -32,6 +33,7 @@ export default function InputStep() {
       keywords,
       totalBudget: Number(budget),
       useExactKeywords: useExact,
+      includeNegations,
     });
 
     nextStep();
@@ -130,6 +132,19 @@ export default function InputStep() {
             <p className="text-xs mt-0.5 opacity-70">Use the keywords above as-is (client-approved terms)</p>
           </button>
         </div>
+
+        <label className="flex items-center gap-2.5 cursor-pointer group">
+          <input
+            type="checkbox"
+            checked={includeNegations}
+            onChange={(e) => setIncludeNegations(e.target.checked)}
+            className="w-4 h-4 rounded border-x-border bg-black text-x-blue focus:ring-x-blue focus:ring-offset-0 cursor-pointer"
+          />
+          <div>
+            <span className="text-sm font-medium text-x-lightgray group-hover:text-white transition-colors">Include negation keywords</span>
+            <p className="text-x-gray text-xs">Add brand-safety negation terms (-term) to filter out off-topic conversation</p>
+          </div>
+        </label>
 
         <div>
           <label htmlFor="budget" className="block text-sm font-medium text-x-lightgray mb-1.5">

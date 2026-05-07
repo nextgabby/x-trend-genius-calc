@@ -6,7 +6,8 @@ export function buildKeywordAnalysisPrompt(
   campaignStartDate: string,
   campaignEndDate: string,
   seasonalityOverride?: string,
-  useExactKeywords?: boolean
+  useExactKeywords?: boolean,
+  includeNegations?: boolean
 ): string {
   const seasonalityInstruction = seasonalityOverride
     ? `\n\nIMPORTANT: The user has specified that the seasonality type MUST be "${seasonalityOverride}". You MUST use this exact seasonality classification — do not override it with your own assessment. Adjust your lookback period recommendation accordingly based on this seasonality type.`
@@ -16,7 +17,7 @@ export function buildKeywordAnalysisPrompt(
     ? `\n\nCRITICAL — EXACT KEYWORDS MODE (STRICT): The user has provided client-approved keywords that MUST be used EXACTLY as-is with ZERO modifications. Rules:
 - Build the suggestedQuery by joining ONLY the provided keywords with OR operators. Do NOT add ANY new keywords, hashtags, hashtag variants, abbreviations, synonyms, related terms, expanded terms, or brainstormed alternatives.
 - Do NOT add terms with or without "#" — if the user provided "NFL", do NOT add "#NFL". If the user provided "#NFL", do NOT add "NFL". Use ONLY what was given.
-- The ONLY additions allowed are contextual negation terms (-term) at the end for brand safety.
+${includeNegations ? '- The ONLY additions allowed are contextual negation terms (-term) at the end for brand safety.' : '- Do NOT add any terms that were not in the original input — including negation terms (-term). No additions of any kind.'}
 - The suggestedKeywords array MUST be empty — return [].
 - If you add even ONE keyword that was not in the original input, you have failed this task.`
     : '';
@@ -56,7 +57,7 @@ SPECIFICITY IS CRITICAL:
 - When in doubt, use quoted multi-word phrases to ensure specificity (e.g., "group stage" not just stage).
 - Single common English words should NEVER appear alone in the query unless they are unambiguously tied to the topic (e.g., "FIFA" is fine because it only means one thing).
 
-CONTEXTUAL NEGATIONS:
+${includeNegations ? `CONTEXTUAL NEGATIONS:
 - Think carefully about what real-world topics, events, or conversations could overlap with the keywords but would be OFF-TOPIC or inappropriate for the brand.
 - Add negation operators (-term) to filter these out. Examples:
   - For a Call of Duty campaign: negate real-world war, military conflict, current geopolitical events (e.g., -Ukraine -Afghanistan -"war crimes" -invasion -bombing) so the query captures gaming conversation, not news about actual wars.
@@ -64,7 +65,8 @@ CONTEXTUAL NEGATIONS:
   - For a food brand: negate food poisoning, recalls, lawsuits, etc.
 - The negations should be specific to the brand and topic — do NOT add generic profanity filters. Only negate terms that would cause the query to pick up conversations unrelated to the campaign or damaging to the brand's context.
 - Place all negations at the end of the query.
-- List your negations and reasoning in the "reasoning" field so the user can review them.
+- List your negations and reasoning in the "reasoning" field so the user can review them.` : `NEGATIONS:
+- Do NOT add any negation operators (-term) to the query. The user has opted out of automatic negation keywords. Build the query using only positive match terms.`}
 
 2. SEASONALITY CLASSIFICATION
 Determine the seasonality type. This is critical — getting this wrong means looking at the wrong historical data.
@@ -110,6 +112,7 @@ Respond ONLY with valid JSON in this exact format:
   "isValid": true,
   "suggestedQuery": "the campaign trigger query — focused on the user's specific niche",
   "reasoning": "brief explanation of your query choices and niche focus",
+  "excludedKeywords": "explain notable keywords that were intentionally LEFT OUT and why. If nothing notable was excluded, say so.",
   "seasonality": "seasonal" | "non-seasonal" | "event-driven",
   "seasonalityExplanation": "why you chose this seasonality type",
   "lookbackStartDate": "YYYY-MM-DD",
@@ -126,8 +129,7 @@ export function buildThresholdAnalysisPrompt(
   stats: StatsResult,
   seasonality: string,
   campaignStartDate: string,
-  campaignEndDate: string,
-  totalBudget: number
+  campaignEndDate: string
 ): string {
   // Compute campaign duration in days
   const campStart = new Date(campaignStartDate);
@@ -150,7 +152,6 @@ You have been given hourly post volume statistics for the following query on X:
 Query: ${query}
 Campaign Dates: ${campaignStartDate} to ${campaignEndDate} (${campaignDays} days)
 Seasonality: ${seasonality}
-Total Ad Spend Budget: $${totalBudget.toLocaleString()}
 
 Historical Hourly Volume Statistics:
 - Total data points (hours): ${stats.totalDataPoints}
@@ -209,11 +210,6 @@ PEAK HOURS:
 CONFIDENCE:
 - Provide a confidence level (high/medium/low) based on data quality and volume.
 
-BUDGET ALLOCATION:
-- Use the spike analysis to estimate trend days: in the historical data, ${stats.spikeDays} out of ${stats.totalDaysInData} days had spike activity. Scale this ratio to the ${campaignDays}-day campaign period to estimate how many days the trigger will fire.
-- Then calculate a recommended max daily spend: divide the total budget ($${totalBudget.toLocaleString()}) by the estimated number of trend days.
-- Explain your reasoning for the trend day estimate and daily spend recommendation.
-
 DETERMINISM & ACCURACY (CRITICAL):
 - Do NOT hallucinate, fabricate, or invent any numbers. Every threshold, metric, and estimate must be derived directly from the statistical data provided above.
 - Your response must be deterministic: given the exact same input statistics, you must produce the exact same thresholds, estimates, and recommendations every time. Do not introduce randomness or variation.
@@ -233,10 +229,7 @@ Respond ONLY with valid JSON in this exact format:
   "stdDeviation": ${stats.stdDev},
   "p75": ${stats.p75},
   "p90": ${stats.p90},
-  "p95": ${stats.p95},
-  "estimatedTrendDays": <number>,
-  "recommendedMaxDailySpend": <number>,
-  "budgetReasoning": "explanation of how you estimated trend days and derived the daily spend recommendation"
+  "p95": ${stats.p95}
 }`;
 }
 

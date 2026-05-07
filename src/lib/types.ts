@@ -5,6 +5,7 @@ export interface CampaignInput {
   keywords: string[];
   totalBudget: number; // Total ad spend in USD
   useExactKeywords: boolean; // If true, use keywords as-is; if false, let Grok optimize
+  includeNegations: boolean; // If true, Grok adds negation terms (-term) for brand safety
 }
 
 export interface KeywordAnalysisResult {
@@ -16,6 +17,7 @@ export interface KeywordAnalysisResult {
   lookbackStartDate: string; // ISO date — Grok-recommended historical period start
   lookbackEndDate: string;   // ISO date — Grok-recommended historical period end
   lookbackReasoning: string; // Why Grok chose this period
+  excludedKeywords: string; // Why certain keywords were intentionally left out
   lookbackQuery?: string;     // Only present when historical data needs different terms than campaign query
   lookbackQueryReasoning?: string; // Why the lookback query differs from the campaign query
   suggestedKeywords?: string[];

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { callGrok } from '@/lib/grok';
 import { buildThresholdAnalysisPrompt } from '@/lib/prompts';
-import { computeStats } from '@/lib/utils';
+import { computeStats, recalculateBudget } from '@/lib/utils';
 import type { HourlyDataPoint, ThresholdRecommendation } from '@/lib/types';
 
 export async function POST(request: Request) {
@@ -29,11 +29,28 @@ export async function POST(request: Request) {
       stats,
       seasonality,
       campaignStartDate,
-      campaignEndDate,
-      totalBudget
+      campaignEndDate
     );
 
     const result = await callGrok<ThresholdRecommendation>(prompt);
+
+    // Compute budget server-side — single source of truth
+    const campStart = new Date(campaignStartDate);
+    const campEnd = new Date(campaignEndDate);
+    const campaignDays = Math.round((campEnd.getTime() - campStart.getTime()) / (1000 * 60 * 60 * 24));
+    const totalDaysInData = stats.totalDaysInData;
+
+    const budget = recalculateBudget(hourlyData, result.onThreshold, totalBudget, campaignDays, totalDaysInData);
+    result.estimatedTrendDays = budget.estimatedTrendDays;
+    result.recommendedMaxDailySpend = budget.recommendedMaxDailySpend;
+
+    const daysAbove = new Set<string>();
+    for (const d of hourlyData) {
+      if (d.count >= result.onThreshold) {
+        daysAbove.add(d.timestamp.split('T')[0]);
+      }
+    }
+    result.budgetReasoning = `Based on the ON threshold of ${result.onThreshold.toLocaleString()} posts/hour, ${daysAbove.size} out of ${totalDaysInData} days in the historical data had at least one hour above this threshold. Scaling this ratio to the ${campaignDays}-day campaign period gives an estimated ${budget.estimatedTrendDays} trend days, with a recommended max daily spend of $${budget.recommendedMaxDailySpend.toLocaleString()}.`;
 
     console.log(`[Result] ON: ${result.onThreshold}, OFF: ${result.offThreshold}, consecutive: ${result.consecutiveHours}h, confidence: ${result.confidence}`);
     console.log(`[Budget] Est. trend days: ${result.estimatedTrendDays}, Max daily spend: $${result.recommendedMaxDailySpend.toLocaleString()}`);

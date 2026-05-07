@@ -6,7 +6,7 @@ import type { KeywordAnalysisResult } from '@/lib/types';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { handle, keywords, campaignStartDate, campaignEndDate, seasonalityOverride, useExactKeywords } = body;
+    const { handle, keywords, campaignStartDate, campaignEndDate, seasonalityOverride, useExactKeywords, includeNegations } = body;
 
     if (!handle || !keywords?.length || !campaignStartDate || !campaignEndDate) {
       return NextResponse.json(
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     console.log(`\n=== /api/analyze-keywords ===`);
     console.log(`[Input] handle: @${handle}, keywords: [${keywords.join(', ')}], dates: ${campaignStartDate} → ${campaignEndDate}${seasonalityOverride ? `, seasonality override: ${seasonalityOverride}` : ''}`);
 
-    const prompt = buildKeywordAnalysisPrompt(handle, keywords, campaignStartDate, campaignEndDate, seasonalityOverride, useExactKeywords);
+    const prompt = buildKeywordAnalysisPrompt(handle, keywords, campaignStartDate, campaignEndDate, seasonalityOverride, useExactKeywords, includeNegations);
     const result = await callGrok<KeywordAnalysisResult>(prompt);
 
     console.log(`[Result] valid: ${result.isValid}, seasonality: ${result.seasonality}, lookback: ${result.lookbackStartDate} → ${result.lookbackEndDate}`);

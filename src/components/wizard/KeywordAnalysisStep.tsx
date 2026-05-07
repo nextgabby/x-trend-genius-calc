@@ -61,6 +61,7 @@ export default function KeywordAnalysisStep() {
           campaignStartDate: campaignInput.campaignStartDate,
           campaignEndDate: campaignInput.campaignEndDate,
           useExactKeywords: campaignInput.useExactKeywords,
+          includeNegations: campaignInput.includeNegations,
         };
 
         // If the user has overridden seasonality, tell Grok
@@ -206,9 +207,16 @@ export default function KeywordAnalysisStep() {
         </div>
 
         <div>
-          <span className="text-sm font-medium text-x-lightgray block mb-1">Reasoning</span>
+          <span className="text-sm font-medium text-x-lightgray block mb-1">Included Keywords</span>
           <p className="text-x-gray text-sm">{keywordAnalysis.reasoning}</p>
         </div>
+
+        {keywordAnalysis.excludedKeywords && (
+          <div>
+            <span className="text-sm font-medium text-x-lightgray block mb-1">Excluded Keywords</span>
+            <p className="text-x-gray text-sm">{keywordAnalysis.excludedKeywords}</p>
+          </div>
+        )}
 
         <div className="bg-black rounded-xl p-4 border border-x-border">
           <span className="text-sm font-medium text-x-lightgray block mb-2">Historical Lookback Period</span>

@@ -33,6 +33,7 @@ const initialState: WizardState = {
     keywords: [],
     totalBudget: 0,
     useExactKeywords: false,
+    includeNegations: false,
   },
   keywordAnalysis: null,
   approvedQuery: '',
