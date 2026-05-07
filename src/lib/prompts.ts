@@ -100,17 +100,34 @@ Recommend the best historical date range to pull post volume data from. The look
 
 The lookback dates must be in the past (before today). Return them as ISO date strings (YYYY-MM-DD).
 
-4. LOOKBACK QUERY (only when needed)
-MOST OF THE TIME, the campaign query (suggestedQuery) works fine for the historical lookback too — the same keywords apply to both periods. In these cases, set lookbackQuery to null.
+4. LOOKBACK QUERY (required when campaign query contains event-specific terms)
 
-ONLY provide a separate lookbackQuery when the historical period has DIFFERENT specifics that require adapted terms. The most common case:
-- Event-driven campaigns with location/host-specific terms: If the campaign targets the 2026 World Cup in USA/Mexico/Canada, but the lookback period is the 2022 World Cup in Qatar, the lookback query must swap 2026 host city terms for 2022-era terms (Qatar, Doha, Lusail, etc.).
-- The lookback query should be the HISTORICAL EQUIVALENT — same niche, same conversation type, but with period-appropriate terms.
+After building the campaign query, review it for any terms from checklist categories 5 (opponent/matchup terms) and 6 (event-specific terms). If ANY such terms exist, a separate lookbackQuery is REQUIRED because those terms will not match historical data from a previous occurrence of the event.
 
-DO NOT provide a lookbackQuery for:
-- Seasonal topics where the same keywords recur (NFL, Christmas) — the campaign query works as-is.
-- Non-seasonal topics using recent data — same query, same period.
-- Any case where the campaign query terms are equally valid in the lookback period.${seasonalityInstruction}
+To build the lookback query:
+- Start with the campaign query as a base
+- SWAP every event-specific term to its historical equivalent:
+  - Year references: "World Cup 2026" → "World Cup 2022", #WC2026 → #WC2022
+  - Opponent/matchup terms: "Canada vs Switzerland" → "Canada vs Belgium" (based on who they actually played in the previous event)
+  - Host city/venue terms: "BMO Field" → "Ahmad bin Ali Stadium", "USA 2026" → "Qatar 2022"
+  - Event-specific hashtags: #FIFA2026 → #FIFA2022
+- KEEP all generic team terms, fan phrasing, abbreviations, and hashtags that apply across both periods (e.g., CanMNT, #CanadaSoccer, "Canada National Team" — these don't change)
+- The lookback query should capture the SAME type of conversation from the PREVIOUS occurrence of the event
+
+Set lookbackQuery to null ONLY when ALL of these are true:
+- The campaign query contains NO opponent-specific terms
+- The campaign query contains NO year-specific terms
+- The campaign query contains NO host city/venue terms
+- In other words: every term in the campaign query works equally well for the historical period
+
+Common cases where lookbackQuery IS required:
+- Event-driven campaigns (World Cup, Olympics, Super Bowl at specific venues)
+- Any query with "vs [opponent]" terms
+- Any query with year-specific hashtags or event names
+
+Common cases where lookbackQuery is NOT required:
+- Seasonal topics with recurring keywords (NFL, Christmas, back-to-school)
+- Evergreen/non-seasonal topics using recent data${seasonalityInstruction}
 
 DETERMINISM & ACCURACY (CRITICAL):
 - Do NOT hallucinate, fabricate, or invent any data. Every value must be derived from the input provided.
