@@ -50,6 +50,10 @@ NICHE FOCUS (CRITICAL):
 WIDE NET WITHIN THE NICHE — KEYWORD COVERAGE CHECKLIST:
 Within the identified niche, systematically work through EACH of these 9 categories and include all relevant terms. Skip a category only if it genuinely doesn't apply.
 
+BEFORE working through the checklist, use the campaign dates to identify any major events that overlap with the campaign window. Use your knowledge of sports schedules, cultural events, and entertainment calendars to determine if the user's keywords relate to a specific event happening during those dates. If they do, categories 5 (opponent/matchup terms) and 6 (event-specific terms) are MANDATORY — you must populate them using your knowledge of that event (confirmed matchups, host cities, venues, year-specific hashtags, etc.). Do not skip these categories just because the user didn't explicitly name the event.
+
+Example: "Team Canada" + dates June–July 2026 → this overlaps with the 2026 FIFA World Cup. Canada is in Group B vs Switzerland, Qatar, and Bosnia. You MUST include those matchup terms and event terms.
+
 1. OFFICIAL NAMES — Full official name of the team/org/event and all recognized variations (e.g., "Canada men's national soccer team", "Canadian men's national team", "Canada National Team")
 2. ABBREVIATIONS & CODES — Standard abbreviations fans and media actually use (e.g., CanMNT, USMNT, FIFA, UEFA, NFL)
 3. HASHTAGS — Both official and fan-community hashtags, with and without # (e.g., #CanadaSoccer, CanadaSoccer, #CanMNT, #WC2026). Include hashtags people actually use on X, not ones you invent.
