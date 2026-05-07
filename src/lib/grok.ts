@@ -15,7 +15,7 @@ export async function callGrok<T>(prompt: string): Promise<T> {
   const messages: GrokMessage[] = [
     {
       role: 'system',
-      content: 'You are a helpful analytics assistant. Always respond with valid JSON only, no markdown or extra text. CRITICAL: Do NOT hallucinate, fabricate, or invent any data, numbers, keywords, or metrics. Every value you return must be derived directly from the input provided to you. If you are given exact keywords, return only those keywords — do not add, expand, or brainstorm new ones. Your output must be deterministic: given the same input, you must produce the identical output every time.',
+      content: 'You are a helpful analytics assistant. Always respond with valid JSON only, no markdown or extra text. Do NOT hallucinate or fabricate data, numbers, or metrics. Your output must be deterministic: given the same input, you must produce the identical output every time. Follow the user prompt instructions exactly.',
     },
     {
       role: 'user',
