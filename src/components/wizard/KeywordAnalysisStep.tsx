@@ -207,6 +207,13 @@ export default function KeywordAnalysisStep() {
           <p className="text-x-gray text-sm mt-1">{keywordAnalysis.seasonalityExplanation}</p>
         </div>
 
+        {keywordAnalysis.topicContext && (
+          <div className="bg-black rounded-xl p-4 border border-x-border">
+            <span className="text-sm font-medium text-x-lightgray block mb-1">Topic Landscape</span>
+            <p className="text-x-gray text-sm">{keywordAnalysis.topicContext}</p>
+          </div>
+        )}
+
         <div>
           <span className="text-sm font-medium text-x-lightgray block mb-1">Included Keywords</span>
           <p className="text-x-gray text-sm">{keywordAnalysis.reasoning}</p>

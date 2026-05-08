@@ -22,6 +22,7 @@ export interface KeywordAnalysisResult {
   queryTerms: string[];       // Individual search terms from Grok (server assembles into suggestedQuery)
   lookbackQueryTerms?: string[] | null; // Individual lookback terms (server assembles into lookbackQuery)
   queryWarnings: string[];      // Advisory notes about query reliability or data limitations
+  topicContext: string;          // Current topic landscape — what's driving conversation, any risks
   lookbackQuery?: string;     // Only present when historical data needs different terms than campaign query
   lookbackQueryReasoning?: string; // Why the lookback query differs from the campaign query
 }

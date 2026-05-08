@@ -114,6 +114,8 @@ ${includeNegations ? `CONTEXTUAL NEGATIONS:
   - For a Call of Duty campaign: negate real-world war, military conflict, current geopolitical events (e.g., -Ukraine -Afghanistan -"war crimes" -invasion -bombing) so the query captures gaming conversation, not news about actual wars.
   - For a World Cup campaign: negate gambling/betting terms if the brand doesn't want that association (e.g., -bet -odds -wager).
   - For a food brand: negate food poisoning, recalls, lawsuits, etc.
+- For campaigns targeting a specific person or brand: use your knowledge of CURRENT events to identify any active controversies, scandals, or negative narratives surrounding the topic. If there is ongoing negative conversation (lawsuits, family drama, political backlash, PR crises, etc.), add negation terms for those specific controversies and explain them in your reasoning. Example: if targeting "David Beckham" and there is active controversy involving his son Brooklyn, negate terms like -"Brooklyn controversy" -"Brooklyn Beckham scandal" and any other specific phrases driving the negative conversation. The advertiser wants to ride positive/neutral buzz, not have their ads appear next to brand-damaging content.
+- Always explain in your reasoning WHAT the current controversy is and WHY you're negating those terms, so the sales team can make an informed decision about whether to keep or remove the negations.
 - The negations should be specific to the brand and topic — do NOT add generic profanity filters. Only negate terms that would cause the query to pick up conversations unrelated to the campaign or damaging to the brand's context.
 - Place all negations at the end of the query.
 - List your negations and reasoning in the "reasoning" field so the user can review them.` : `NEGATIONS:
@@ -187,6 +189,9 @@ DETERMINISM & ACCURACY (CRITICAL):
 - Your response must be deterministic: given the exact same input, you must produce the exact same output every time. Do not introduce randomness or variation.
 - For seasonality classification and lookback dates, apply the rules above mechanically — do not vary your answer between runs.
 
+CURRENT TOPIC LANDSCAPE:
+Briefly assess what is driving conversation about this topic right now. Flag any active controversies, PR crises, or negative narratives the advertiser should be aware of — even if negations are not enabled. Be direct. One paragraph.
+
 FINAL SANITY CHECK — THINK LIKE A DATA SCIENTIST:
 Before returning your response, step back and ask yourself these questions. If the answer to any is NO, fix your output.
 
@@ -215,7 +220,8 @@ Respond ONLY with valid JSON in this exact format:
   "lookbackReasoning": "explain why this historical period is the best predictor for the campaign",
   "lookbackQueryTerms": null or ["adapted", "terms", "for", "historical", "period"],
   "lookbackQueryReasoning": null or "explain how the lookback query was adapted and why",
-  "queryWarnings": ["any advisory notes about query reliability, trigger consistency, or data limitations — empty array if none"]
+  "queryWarnings": ["any advisory notes about query reliability, trigger consistency, or data limitations — empty array if none"],
+  "topicContext": "brief current landscape — what's driving conversation, any risks the advertiser should know about"
 }`;
 }
 
