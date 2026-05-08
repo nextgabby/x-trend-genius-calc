@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { callGrok } from '@/lib/grok';
 import { buildKeywordAnalysisPrompt } from '@/lib/prompts';
+import type { TweetSampleForPrompt } from '@/lib/prompts';
+import { fetchTweetSamples } from '@/lib/x-api';
 import type { KeywordAnalysisResult } from '@/lib/types';
 
 function assembleQuery(terms: string[]): string {
@@ -28,7 +30,30 @@ export async function POST(request: Request) {
     console.log(`\n=== /api/analyze-keywords ===`);
     console.log(`[Input] handle: @${handle}, keywords: [${keywords.join(', ')}], dates: ${campaignStartDate} → ${campaignEndDate}${seasonalityOverride ? `, seasonality override: ${seasonalityOverride}` : ''}`);
 
-    const prompt = buildKeywordAnalysisPrompt(handle, keywords, campaignStartDate, campaignEndDate, seasonalityOverride, useExactKeywords, includeNegations, keywordOperator);
+    // Fetch recent tweet samples for real-time context (best-effort)
+    let recentTweetSamples: TweetSampleForPrompt[] = [];
+    try {
+      const sampleQuery = keywords.join(' OR ');
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const rawSamples = await fetchTweetSamples(
+        sampleQuery,
+        weekAgo.toISOString(),
+        now.toISOString(),
+        20
+      );
+      recentTweetSamples = rawSamples.map((t) => ({
+        text: t.text,
+        created_at: t.created_at,
+        retweets: t.public_metrics?.retweet_count ?? 0,
+        likes: t.public_metrics?.like_count ?? 0,
+      }));
+      console.log(`[Tweets] Fetched ${recentTweetSamples.length} recent samples for context`);
+    } catch (err) {
+      console.warn('[Tweets] Failed to fetch recent samples (continuing without):', err);
+    }
+
+    const prompt = buildKeywordAnalysisPrompt(handle, keywords, campaignStartDate, campaignEndDate, seasonalityOverride, useExactKeywords, includeNegations, keywordOperator, recentTweetSamples);
     const result = await callGrok<KeywordAnalysisResult>(prompt);
 
     // Assemble query strings from terms arrays (server-side deterministic assembly)

@@ -8,7 +8,8 @@ export function buildKeywordAnalysisPrompt(
   seasonalityOverride?: string,
   useExactKeywords?: boolean,
   includeNegations?: boolean,
-  keywordOperator?: 'AND' | 'OR' | 'SINGLE'
+  keywordOperator?: 'AND' | 'OR' | 'SINGLE',
+  recentTweetSamples?: TweetSampleForPrompt[]
 ): string {
   const operator = keywordOperator || 'SINGLE';
   const seasonalityInstruction = seasonalityOverride
@@ -189,8 +190,19 @@ DETERMINISM & ACCURACY (CRITICAL):
 - Your response must be deterministic: given the exact same input, you must produce the exact same output every time. Do not introduce randomness or variation.
 - For seasonality classification and lookback dates, apply the rules above mechanically — do not vary your answer between runs.
 
-CURRENT TOPIC LANDSCAPE:
-Briefly assess what is driving conversation about this topic right now. Flag any active controversies, PR crises, or negative narratives the advertiser should be aware of — even if negations are not enabled. Be direct. One paragraph.
+${recentTweetSamples && recentTweetSamples.length > 0 ? `RECENT TWEET SAMPLES (last 7 days):
+Below are real posts from X about this topic from the past week. Use these to:
+- Understand the CURRENT conversation — what are people actually talking about?
+- Identify any controversies, negative narratives, or PR issues that are active RIGHT NOW
+- See how fans/consumers actually phrase things (this informs your keyword choices too)
+- Spot any trending sub-topics or events you should account for
+
+${recentTweetSamples.map((t, i) => `${i + 1}. (${t.created_at}) [${t.retweets ?? 0} RTs, ${t.likes ?? 0} likes]\n   "${t.text}"`).join('\n\n')}
+
+` : ''}CURRENT TOPIC LANDSCAPE:
+${recentTweetSamples && recentTweetSamples.length > 0
+  ? 'Using the real tweet samples above, assess what is driving conversation about this topic right now. Flag any active controversies, PR crises, or negative narratives the advertiser should be aware of — even if negations are not enabled. Ground your assessment in the actual tweets, not just your general knowledge. Be direct. One paragraph.'
+  : 'Based on your general knowledge, briefly assess what is driving conversation about this topic right now. Flag any active controversies, PR crises, or negative narratives the advertiser should be aware of — even if negations are not enabled. Be direct. One paragraph.'}
 
 FINAL SANITY CHECK — THINK LIKE A DATA SCIENTIST:
 Before returning your response, step back and ask yourself these questions. If the answer to any is NO, fix your output.

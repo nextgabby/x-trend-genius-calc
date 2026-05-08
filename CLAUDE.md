@@ -1,6 +1,10 @@
 @AGENTS.md
 # TREND GENIUS CALCULATOR — PRODUCT SPEC & ENGINEERING RULES
 
+## CORE PHILOSOPHY
+
+This tool replaces a data scientist. Its purpose is to AUTOMATE judgment calls and ELIMINATE human error — not recreate it. Every validation, every checklist, every sanity check exists because a human got it wrong before. If Grok can catch a mistake that a strategist would miss, it should. If the server can enforce a rule that a human might forget, it must. The tool should be smarter than the person using it.
+
 ## READ THIS FIRST
 
 This tool drives **real revenue** — it configures live ad triggers for brand partners spending millions of dollars. If thresholds are wrong, ads either never fire (wasted budget) or fire on noise (wasted impressions). Every calculation, every keyword, every query matters.
