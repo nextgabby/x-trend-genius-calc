@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { callGrok } from '@/lib/grok';
 import { buildThresholdAnalysisPrompt } from '@/lib/prompts';
-import { computeStats, recalculateBudget } from '@/lib/utils';
+import { computeStats, recalculateBudget, cleanRound } from '@/lib/utils';
 import type { HourlyDataPoint, ThresholdRecommendation } from '@/lib/types';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { query, data, seasonality, campaignStartDate, campaignEndDate, totalBudget } = body;
+    const { query, lookbackQuery, data, seasonality, campaignStartDate, campaignEndDate, totalBudget } = body;
 
     if (!query || !data?.length || !seasonality || !campaignStartDate || !campaignEndDate || !totalBudget) {
       return NextResponse.json(
@@ -29,10 +29,16 @@ export async function POST(request: Request) {
       stats,
       seasonality,
       campaignStartDate,
-      campaignEndDate
+      campaignEndDate,
+      lookbackQuery || undefined
     );
 
     const result = await callGrok<ThresholdRecommendation>(prompt);
+
+    // Ensure ON > OFF after rounding
+    const cleaned = cleanRound(result.onThreshold, result.offThreshold);
+    result.onThreshold = cleaned.on;
+    result.offThreshold = cleaned.off;
 
     // Compute budget server-side — single source of truth
     const campStart = new Date(campaignStartDate);

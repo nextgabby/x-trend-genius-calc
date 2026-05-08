@@ -62,6 +62,7 @@ export default function KeywordAnalysisStep() {
           campaignEndDate: campaignInput.campaignEndDate,
           useExactKeywords: campaignInput.useExactKeywords,
           includeNegations: campaignInput.includeNegations,
+          keywordOperator: campaignInput.keywordOperator,
         };
 
         // If the user has overridden seasonality, tell Grok
@@ -211,10 +212,25 @@ export default function KeywordAnalysisStep() {
           <p className="text-x-gray text-sm">{keywordAnalysis.reasoning}</p>
         </div>
 
-        {keywordAnalysis.excludedKeywords && (
+        {keywordAnalysis.excludedKeywords && keywordAnalysis.excludedKeywords.length > 0 && (
           <div>
             <span className="text-sm font-medium text-x-lightgray block mb-1">Excluded Keywords</span>
-            <p className="text-x-gray text-sm">{keywordAnalysis.excludedKeywords}</p>
+            <ul className="text-x-gray text-sm space-y-1">
+              {keywordAnalysis.excludedKeywords.map((ex) => (
+                <li key={ex.term}><span className="text-white font-medium">{ex.term}</span> — {ex.reason}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {keywordAnalysis.queryWarnings && keywordAnalysis.queryWarnings.length > 0 && (
+          <div className="bg-yellow-400/10 border border-yellow-400/30 rounded-xl p-4">
+            <span className="text-sm font-medium text-yellow-400 block mb-1">Warnings</span>
+            <ul className="text-yellow-200/80 text-sm space-y-1">
+              {keywordAnalysis.queryWarnings.map((warning, i) => (
+                <li key={i}>{warning}</li>
+              ))}
+            </ul>
           </div>
         )}
 
@@ -290,16 +306,7 @@ export default function KeywordAnalysisStep() {
           </div>
         )}
 
-        {keywordAnalysis.suggestedKeywords && keywordAnalysis.suggestedKeywords.length > 0 && (
-          <div>
-            <span className="text-sm font-medium text-x-lightgray block mb-2">Suggested Additional Keywords</span>
-            <div className="flex flex-wrap gap-2">
-              {keywordAnalysis.suggestedKeywords.map((kw) => (
-                <Badge key={kw}>{kw}</Badge>
-              ))}
-            </div>
-          </div>
-        )}
+
       </div>
 
       <div className="flex justify-between mt-6 pt-4 border-t border-x-border">

@@ -7,8 +7,10 @@ export function buildKeywordAnalysisPrompt(
   campaignEndDate: string,
   seasonalityOverride?: string,
   useExactKeywords?: boolean,
-  includeNegations?: boolean
+  includeNegations?: boolean,
+  keywordOperator?: 'AND' | 'OR' | 'SINGLE'
 ): string {
+  const operator = keywordOperator || 'SINGLE';
   const seasonalityInstruction = seasonalityOverride
     ? `\n\nIMPORTANT: The user has specified that the seasonality type MUST be "${seasonalityOverride}". You MUST use this exact seasonality classification — do not override it with your own assessment. Adjust your lookback period recommendation accordingly based on this seasonality type.`
     : '';
@@ -18,7 +20,7 @@ export function buildKeywordAnalysisPrompt(
 - Build the suggestedQuery by joining ONLY the provided keywords with OR operators. Do NOT add ANY new keywords, hashtags, hashtag variants, abbreviations, synonyms, related terms, expanded terms, or brainstormed alternatives.
 - Do NOT add terms with or without "#" — if the user provided "NFL", do NOT add "#NFL". If the user provided "#NFL", do NOT add "NFL". Use ONLY what was given.
 ${includeNegations ? '- The ONLY additions allowed are contextual negation terms (-term) at the end for brand safety.' : '- Do NOT add any terms that were not in the original input — including negation terms (-term). No additions of any kind.'}
-- The suggestedKeywords array MUST be empty — return [].
+- The queryTerms array MUST contain ONLY the provided keywords — no additions.
 - If you add even ONE keyword that was not in the original input, you have failed this task.`
     : '';
 
@@ -27,9 +29,17 @@ ${includeNegations ? '- The ONLY additions allowed are contextual negation terms
 A user wants to set up Trend Genius ad triggers for the following campaign:
 - Advertiser X Handle: @${handle}
 - Campaign Dates: ${campaignStartDate} to ${campaignEndDate}
-- Keywords/Topics: ${keywords.join(', ')}${exactKeywordsInstruction}
+- Keywords/Topics: ${keywords.join(` ${operator === 'AND' ? 'AND' : 'OR'} `)}
+- Keyword Operator: ${operator}${exactKeywordsInstruction}
 
 The handle @${handle} is provided so you can understand the brand's vibe, audience, and the type of sentiment/conversation that surrounds them. Use this context to craft a query that captures the kind of organic conversation that would be relevant to this brand's campaign — but do NOT include the handle itself in the search query.
+
+HOW TO USE THE HANDLE CONTEXT:
+The handle tells you WHO is advertising, which helps you make judgment calls about query scope:
+- If the keyword IS the brand's ambassador/partner/spokesperson (e.g., @LouisVuitton + "zendaya"), the user likely wants ALL conversation about that person — any trending Zendaya moment is relevant to LV because she's their ambassador. Build a broad query around the keyword, not a narrow brand-intersection query. If they wanted only fashion-related Zendaya conversation, they would have typed "zendaya AND fashion."
+- If the keyword is a general topic (e.g., @DraftKings + "NBA"), the handle tells you the ANGLE — DraftKings cares about NBA from a betting/fantasy perspective, so terms like "player props", "over/under", and "parlay" might be relevant additions.
+- If the keyword is already specific (e.g., @Walmart + "Black Friday deals"), the handle just confirms the context — no special scoping needed.
+- When in doubt, go broad. The user can always narrow with the AND operator. It's better to capture too much relevant conversation than to miss spikes because the query was too narrow.
 
 Your tasks:
 
@@ -39,6 +49,33 @@ This query will be used as the LIVE TRIGGER for the Trend Genius campaign — it
 - Validate whether these keywords are suitable for monitoring post volume on X.
 - Suggest an optimized X search query using proper syntax (OR operators, quoted phrases, negations).
 - DO include retweets — do NOT add -is:retweet. We want total conversation volume including retweets.
+
+KEYWORD INPUT INTERPRETATION:
+The user's keywords use AND/OR operators to express their intent precisely. How you interpret them is critical:
+
+SINGLE TOPIC (no operator):
+  Input: "Team Canada"
+  Meaning: Expand this topic broadly. Use the campaign dates to determine context (sport, event, etc.) and generate all relevant variations, hashtags, fan terms, and matchup terms.
+  Example output: Canada National Team, Canadian men's soccer, CanMNT, #CanadaSoccer, Canada vs Switzerland, etc.
+
+AND (intersection):
+  Input: "Team Canada AND World Cup"
+  Meaning: ONLY generate terms that relate to BOTH topics simultaneously. Do not include generic World Cup terms (Spain national team, FIFA rankings) that aren't Canada-specific. Do not include generic Canada soccer terms (friendly matches, CONCACAF qualifiers) that aren't World Cup-specific.
+  Example output: Canada vs Switzerland, Canada vs Qatar, CanMNT World Cup, #CanadaSoccer (during WC window), Canada World Cup group stage — every term must be relevant to BOTH Team Canada AND the World Cup.
+
+OR (union):
+  Input: "NFL OR NBA"
+  Meaning: Expand each topic independently and combine all terms. The resulting query should capture conversation about EITHER topic.
+  Example output: all NFL terms OR'd with all NBA terms.
+
+COMMA = OR:
+  Commas are treated as OR. "NFL, NBA" is the same as "NFL OR NBA".
+
+The operator determines the SCOPE of keyword generation. AND narrows it. OR widens it. Getting this wrong means the campaign either misses relevant conversation (too narrow) or triggers on irrelevant conversation (too wide).
+
+HOW THE OPERATOR AFFECTS THE CHECKLIST:
+- SINGLE or OR: Run the full 9-category checklist for each topic independently, then combine all terms.
+- AND: Run the checklist but FILTER every term — only include terms that satisfy BOTH topics. If a term from any category is only relevant to one topic, exclude it.
 
 NICHE FOCUS (CRITICAL):
 - The campaign query MUST focus ONLY on the user's specific niche or angle, NOT the broader event/topic.
@@ -61,8 +98,8 @@ Example: "Team Canada" + dates June–July 2026 → this overlaps with the 2026 
 5. OPPONENT/MATCHUP TERMS — If this is a competition, include "Team A vs Team B" pairings for confirmed opponents (e.g., "Canada vs Switzerland", "Canada vs Qatar"). Use the campaign dates to determine which specific matchups are relevant.
 6. EVENT-SPECIFIC TERMS — Year-specific terms, host city names, tournament phases, venue names that are relevant to the campaign window (e.g., "World Cup 2026", "BMO Field", "group stage")
 7. SPORT/CATEGORY CONTEXT — Add the sport or category qualifier to prevent false matches (e.g., "Canada soccer" not just "Canada", "Team Canada soccer" not just "Team Canada" which could be hockey/Olympics/curling)
-8. GOVERNING BODY & LEAGUE TERMS — Relevant governing bodies, leagues, or organizing entities that fans reference (e.g., FIFA, CONCACAF, MLS)
-9. RELATED COMMUNITY TERMS — Adjacent fan communities or related teams whose conversation overlaps with your niche (e.g., for Canada WC: USMNT, "Mexico national team" — only include if the campaign brief suggests broader coverage)
+8. GOVERNING BODY & LEAGUE TERMS — Relevant governing bodies, leagues, or organizing entities that fans reference (e.g., FIFA, CONCACAF, MLS). Only include if the term is SPECIFIC to the user's topic. Generic governing body terms (FIFA, CONCACAF) or broad related-team terms match far more conversation than just the user's niche — exclude them unless the campaign explicitly wants broad coverage.
+9. RELATED COMMUNITY TERMS — Adjacent fan communities or related teams whose conversation overlaps with your niche (e.g., for Canada WC: USMNT, "Mexico national team" — only include if the campaign brief suggests broader coverage). Only include if the term is SPECIFIC to the user's topic. Generic governing body terms (FIFA, CONCACAF) or broad related-team terms match far more conversation than just the user's niche — exclude them unless the campaign explicitly wants broad coverage.
 
 After working through the checklist, review the full list and remove any term that fails the SPECIFICITY test above.
 
@@ -81,6 +118,17 @@ ${includeNegations ? `CONTEXTUAL NEGATIONS:
 - Place all negations at the end of the query.
 - List your negations and reasoning in the "reasoning" field so the user can review them.` : `NEGATIONS:
 - Do NOT add any negation operators (-term) to the query. The user has opted out of automatic negation keywords. Build the query using only positive match terms.`}
+
+QUERY OUTPUT FORMAT:
+Do NOT return a fully assembled query string. Instead, return TWO arrays:
+
+queryTerms: string[] — each individual search term as a separate array entry
+  Example: ["Canada National Team", "Canadian men's soccer", "CanMNT", "#CanadaSoccer", "Canada vs Switzerland"]
+  - Each term should be the raw phrase WITHOUT surrounding quotes — the server adds quotes to multi-word phrases automatically
+  - Hashtags keep their # prefix
+  - Single words stay as-is (e.g., "CanMNT", "USMNT")
+
+lookbackQueryTerms: string[] | null — same format, for the lookback query. Null if no separate lookback query is needed.
 
 2. SEASONALITY CLASSIFICATION
 Determine the seasonality type. This is critical — getting this wrong means looking at the wrong historical data.
@@ -117,6 +165,7 @@ To build the lookback query:
   - Event-specific hashtags: #FIFA2026 → #FIFA2022
 - KEEP all generic team terms, fan phrasing, abbreviations, and hashtags that apply across both periods (e.g., CanMNT, #CanadaSoccer, "Canada National Team" — these don't change)
 - The lookback query should capture the SAME type of conversation from the PREVIOUS occurrence of the event
+- The lookback query must match the campaign query in DEPTH and COVERAGE — same fan phrasing variations, same hashtag variants, same abbreviations. Only event-specific terms (opponents, years, venues, event hashtags) should differ. If the campaign query has 15 terms, the lookback query should have roughly 15 terms.
 
 Set lookbackQuery to null ONLY when ALL of these are true:
 - The campaign query contains NO opponent-specific terms
@@ -138,20 +187,35 @@ DETERMINISM & ACCURACY (CRITICAL):
 - Your response must be deterministic: given the exact same input, you must produce the exact same output every time. Do not introduce randomness or variation.
 - For seasonality classification and lookback dates, apply the rules above mechanically — do not vary your answer between runs.
 
+FINAL SANITY CHECK — THINK LIKE A DATA SCIENTIST:
+Before returning your response, step back and ask yourself these questions. If the answer to any is NO, fix your output.
+
+1. QUERY COVERAGE: If someone tweeted about this topic right now in the most natural way possible, would this query catch it? Think of 5 realistic tweets a fan/consumer would post. Do they match at least one term in your query?
+
+2. QUERY PRECISION: If I ran this query right now, what percentage of matching posts would actually be relevant to the campaign? If the answer is less than ~80%, the query is too broad. Tighten it.
+
+3. LOOKBACK VALIDITY: Will the lookback query, run against the lookback dates, return data that is genuinely comparable to what the campaign query will see during the live campaign? If the lookback query is structurally different from the campaign query (fewer terms, different format, missing variations), the historical data won't be a reliable baseline and the thresholds will be wrong.
+
+4. SIGNAL vs NOISE: Are there any terms in the query that will pick up large amounts of unrelated conversation? One bad term can drown the real signal and make thresholds meaningless. When in doubt, leave it out — it's better to slightly undercount relevant conversation than to flood the data with noise.
+
+5. EXCLUDED KEYWORDS VALUE: Would a sales strategist reading your excludedKeywords list learn something useful? Each exclusion should teach them about the tradeoffs you made. "Too broad" alone isn't helpful — explain WHAT it would match that's wrong.
+
+6. TRIGGERING RELIABILITY: Is this topic something that can be reliably detected through keyword matching? Some concepts are easy to match (team names, product names, events) and some are inherently subjective or conversational (emotions, reactions, "upsets", "controversy", "hype"). If the topic relies heavily on sentiment or subjective language that varies wildly across tweets, warn the user that trigger behavior may be inconsistent and suggest more concrete alternative terms they could add. Include this warning in the queryWarnings field.
+
 Respond ONLY with valid JSON in this exact format:
 {
   "isValid": true,
-  "suggestedQuery": "the campaign trigger query — focused on the user's specific niche",
+  "queryTerms": ["each", "individual", "search", "term", "#AsItsOwnEntry"],
   "reasoning": "brief explanation of your query choices and niche focus",
-  "excludedKeywords": "explain notable keywords that were intentionally LEFT OUT and why. If nothing notable was excluded, say so.",
+  "excludedKeywords": [{"term": "FIFA", "reason": "Too broad — matches all soccer, not just Canada"}],
   "seasonality": "seasonal" | "non-seasonal" | "event-driven",
   "seasonalityExplanation": "why you chose this seasonality type",
   "lookbackStartDate": "YYYY-MM-DD",
   "lookbackEndDate": "YYYY-MM-DD",
   "lookbackReasoning": "explain why this historical period is the best predictor for the campaign",
-  "lookbackQuery": null or "adapted query ONLY if historical period needs different terms",
+  "lookbackQueryTerms": null or ["adapted", "terms", "for", "historical", "period"],
   "lookbackQueryReasoning": null or "explain how the lookback query was adapted and why",
-  "suggestedKeywords": ["all", "individual", "terms", "and", "variations", "you", "considered"]
+  "queryWarnings": ["any advisory notes about query reliability, trigger consistency, or data limitations — empty array if none"]
 }`;
 }
 
@@ -160,7 +224,8 @@ export function buildThresholdAnalysisPrompt(
   stats: StatsResult,
   seasonality: string,
   campaignStartDate: string,
-  campaignEndDate: string
+  campaignEndDate: string,
+  lookbackQuery?: string
 ): string {
   // Compute campaign duration in days
   const campStart = new Date(campaignStartDate);
@@ -180,7 +245,10 @@ export function buildThresholdAnalysisPrompt(
   return `You are an expert Advertising Trigger System analyst specializing in X (Twitter) post volume analysis for Trend Genius campaigns.
 
 You have been given hourly post volume statistics for the following query on X:
-Query: ${query}
+${lookbackQuery
+  ? `Query (live campaign trigger): ${query}
+Historical Data Query: ${lookbackQuery} (this is the query used to fetch the volume data below — it differs from the campaign query because the historical period had different event-specific terms)`
+  : `Query: ${query}`}
 Campaign Dates: ${campaignStartDate} to ${campaignEndDate} (${campaignDays} days)
 Seasonality: ${seasonality}
 

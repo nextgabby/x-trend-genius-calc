@@ -10,7 +10,11 @@ export default function InputStep() {
   const [handle, setHandle] = useState(campaignInput.handle);
   const [startDate, setStartDate] = useState(campaignInput.campaignStartDate);
   const [endDate, setEndDate] = useState(campaignInput.campaignEndDate);
-  const [keywordInput, setKeywordInput] = useState(campaignInput.keywords.join(', '));
+  const [keywordInput, setKeywordInput] = useState(
+    campaignInput.keywordOperator === 'AND'
+      ? campaignInput.keywords.join(' AND ')
+      : campaignInput.keywords.join(', ')
+  );
   const [budget, setBudget] = useState(campaignInput.totalBudget ? campaignInput.totalBudget.toString() : '');
   const [useExact, setUseExact] = useState(campaignInput.useExactKeywords);
   const [includeNegations, setIncludeNegations] = useState(campaignInput.includeNegations);
@@ -21,10 +25,20 @@ export default function InputStep() {
     e.preventDefault();
     if (!isValid) return;
 
-    const keywords = keywordInput
-      .split(',')
-      .map((k) => k.trim())
-      .filter(Boolean);
+    // Parse AND/OR operators from input
+    let keywordOperator: 'AND' | 'OR' | 'SINGLE' = 'SINGLE';
+    let keywords: string[];
+
+    const trimmed = keywordInput.trim();
+    if (/\bAND\b/i.test(trimmed)) {
+      keywordOperator = 'AND';
+      keywords = trimmed.split(/\bAND\b/i).map((k) => k.trim()).filter(Boolean);
+    } else if (/\bOR\b/i.test(trimmed) || trimmed.includes(',')) {
+      keywordOperator = 'OR';
+      keywords = trimmed.split(/\bOR\b|,/i).map((k) => k.trim()).filter(Boolean);
+    } else {
+      keywords = [trimmed];
+    }
 
     setCampaignInput({
       handle: handle.replace(/^@/, ''),
@@ -34,6 +48,7 @@ export default function InputStep() {
       totalBudget: Number(budget),
       useExactKeywords: useExact,
       includeNegations,
+      keywordOperator,
     });
 
     nextStep();
@@ -99,11 +114,11 @@ export default function InputStep() {
             id="keywords"
             value={keywordInput}
             onChange={(e) => setKeywordInput(e.target.value)}
-            placeholder="NFL, football, Super Bowl, touchdown"
+            placeholder="Team Canada AND World Cup — or — NFL, NBA"
             rows={3}
             className="w-full bg-black border border-x-border rounded-lg px-3 py-2.5 text-white placeholder-x-gray focus:outline-none focus:border-x-blue focus:ring-1 focus:ring-x-blue resize-none"
           />
-          <p className="text-x-gray text-xs mt-1">Separate multiple keywords with commas</p>
+          <p className="text-x-gray text-xs mt-1">Use AND to intersect topics, OR or comma to combine topics, or enter a single topic</p>
         </div>
 
         <div className="flex gap-3">

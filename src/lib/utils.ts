@@ -209,6 +209,15 @@ export function findThresholdForTrendDays(
   return sortedMaxes[targetDaysAbove - 1];
 }
 
+export function cleanRound(on: number, off: number): { on: number; off: number } {
+  let roundedOn = Math.round(on);
+  let roundedOff = Math.round(off);
+  if (roundedOn <= roundedOff) {
+    roundedOff = roundedOn - 1;
+  }
+  return { on: Math.max(1, roundedOn), off: Math.max(0, roundedOff) };
+}
+
 export function formatNumber(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;

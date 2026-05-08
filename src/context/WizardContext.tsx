@@ -34,6 +34,7 @@ const initialState: WizardState = {
     totalBudget: 0,
     useExactKeywords: false,
     includeNegations: false,
+    keywordOperator: 'SINGLE',
   },
   keywordAnalysis: null,
   approvedQuery: '',

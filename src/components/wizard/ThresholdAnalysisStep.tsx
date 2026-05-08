@@ -7,7 +7,7 @@ import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ThresholdChart from '@/components/charts/ThresholdChart';
-import { formatNumber, recalculateBudget, findThresholdForTrendDays } from '@/lib/utils';
+import { formatNumber, recalculateBudget, findThresholdForTrendDays, cleanRound } from '@/lib/utils';
 
 function formatCurrency(n: number): string {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
@@ -58,6 +58,7 @@ export default function ThresholdAnalysisStep() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             query: approvedQuery,
+            lookbackQuery: keywordAnalysis?.lookbackQuery || null,
             data: countsData?.data,
             seasonality: keywordAnalysis?.seasonality || 'non-seasonal',
             campaignStartDate: campaignInput.campaignStartDate,
@@ -161,7 +162,8 @@ export default function ThresholdAnalysisStep() {
     const currentRatio = thresholdRecommendation.onThreshold > 0
       ? thresholdRecommendation.offThreshold / thresholdRecommendation.onThreshold
       : 0.65;
-    const newOff = Math.round(newOn * currentRatio);
+    const cleaned = cleanRound(newOn, Math.round(newOn * currentRatio));
+    const newOff = cleaned.off;
 
     const updated = {
       ...thresholdRecommendation,
