@@ -90,7 +90,12 @@ Within the identified niche, systematically work through EACH of these 9 categor
 
 BEFORE working through the checklist, use the campaign dates to identify any major events that overlap with the campaign window. Use your knowledge of sports schedules, cultural events, and entertainment calendars to determine if the user's keywords relate to a specific event happening during those dates. If they do, categories 5 (opponent/matchup terms) and 6 (event-specific terms) are MANDATORY — you must populate them using your knowledge of that event (confirmed matchups, host cities, venues, year-specific hashtags, etc.). Do not skip these categories just because the user didn't explicitly name the event.
 
-Example: "Team Canada" + dates June–July 2026 → this overlaps with the 2026 FIFA World Cup. Canada is in Group B vs Switzerland, Qatar, and Bosnia. You MUST include those matchup terms and event terms.
+Examples:
+- "Team Canada" + dates June–July 2026 → overlaps with 2026 FIFA World Cup. Identify Canada's group opponents and include matchup terms.
+- "Team USA" + dates June–July 2026 → same event. Identify USA's group opponents and include matchup terms.
+- "Chiefs" + dates February 2027 → overlaps with Super Bowl. Identify their likely opponent and include matchup terms, venue, host city.
+- "Drake" + dates July 2026 → check if a tour or album release overlaps. Include tour name, venue cities, album title as event terms.
+- This applies to ANY topic, sport, event, or entertainment property. Use your knowledge of current schedules, fixtures, lineups, and event details to populate categories 5 and 6. Do not skip them just because the example above doesn't match your topic.
 
 MINIMUM BASELINE BY TOPIC TYPE:
 Regardless of which checklist categories apply, every query must include AT MINIMUM these terms for the given topic type. This ensures consistency across runs.
