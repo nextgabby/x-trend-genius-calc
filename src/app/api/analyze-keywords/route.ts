@@ -87,6 +87,12 @@ export async function POST(request: Request) {
       result.lookbackQueryTerms = null;
     }
 
+    // Warn if negations were requested but Grok returned none
+    if (includeNegations && result.queryTerms && !result.queryTerms.some((t: string) => t.startsWith('-'))) {
+      if (!result.queryWarnings) result.queryWarnings = [];
+      result.queryWarnings.push('Negation keywords were enabled but none were generated. Grok did not identify brand safety risks for this topic — verify this is correct before approving.');
+    }
+
     console.log(`[Result] valid: ${result.isValid}, seasonality: ${result.seasonality}, lookback: ${result.lookbackStartDate} → ${result.lookbackEndDate}`);
     console.log(`[Result] queryTerms: ${result.queryTerms?.length ?? 0} terms → ${result.suggestedQuery?.substring(0, 120)}...`);
     if (result.lookbackQuery) {
