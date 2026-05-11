@@ -110,16 +110,25 @@ SPECIFICITY IS CRITICAL:
 - Single common English words should NEVER appear alone in the query unless they are unambiguously tied to the topic (e.g., "FIFA" is fine because it only means one thing).
 
 ${includeNegations ? `CONTEXTUAL NEGATIONS:
-- Think carefully about what real-world topics, events, or conversations could overlap with the keywords but would be OFF-TOPIC or inappropriate for the brand.
-- Add negation operators (-term) to filter these out. Examples:
-  - For a Call of Duty campaign: negate real-world war, military conflict, current geopolitical events (e.g., -Ukraine -Afghanistan -"war crimes" -invasion -bombing) so the query captures gaming conversation, not news about actual wars.
-  - For a World Cup campaign: negate gambling/betting terms if the brand doesn't want that association (e.g., -bet -odds -wager).
-  - For a food brand: negate food poisoning, recalls, lawsuits, etc.
-- For campaigns targeting a specific person or brand: use your knowledge of CURRENT events to identify any active controversies, scandals, or negative narratives surrounding the topic. If there is ongoing negative conversation (lawsuits, family drama, political backlash, PR crises, etc.), add negation terms for those specific controversies and explain them in your reasoning. Example: if targeting "David Beckham" and there is active controversy involving his son Brooklyn, negate terms like -"Brooklyn controversy" -"Brooklyn Beckham scandal" and any other specific phrases driving the negative conversation. The advertiser wants to ride positive/neutral buzz, not have their ads appear next to brand-damaging content.
-- Always explain in your reasoning WHAT the current controversy is and WHY you're negating those terms, so the sales team can make an informed decision about whether to keep or remove the negations.
-- The negations should be specific to the brand and topic — do NOT add generic profanity filters. Only negate terms that would cause the query to pick up conversations unrelated to the campaign or damaging to the brand's context.
-- Place all negations at the end of the query.
-- List your negations and reasoning in the "reasoning" field so the user can review them.` : `NEGATIONS:
+You MUST generate negation terms. Work through EACH of these categories and include relevant negations. Skip a category only if it genuinely doesn't apply.
+
+1. CURRENT CONTROVERSIES — Use the recent tweet samples (if available) and your knowledge to identify any active negative narratives, scandals, legal issues, or PR crises. Negate the specific terms driving that conversation. (e.g., -scandal -lawsuit -"domestic violence" -arrested)
+
+2. INJURY/SETBACK TERMS — For athletes or teams, negate terms that indicate negative performance conversation the brand wouldn't want to be next to. (e.g., -injured -injury -benched -suspended -"torn ACL" -concussion -"out for season")
+
+3. COMPETITOR/CONFLICT TERMS — Terms that could associate the brand with competitors or unwanted entities. (e.g., for Nike campaign: -Adidas -"Under Armour")
+
+4. GAMBLING/BETTING — Unless the brand is a sportsbook, negate betting conversation. (e.g., -bet -odds -wager -parlay -"point spread" -DraftKings -FanDuel)
+
+5. NEGATIVE SENTIMENT MAGNETS — Common phrases that attract toxic conversation around the topic. (e.g., -"worst ever" -overrated -flop -choke -"washed up" -boycott -cancelled)
+
+6. OFF-TOPIC OVERLAP — Real-world topics that share keywords but are completely unrelated. (e.g., for Call of Duty: -Ukraine -Afghanistan -"war crimes" -invasion)
+
+7. BRAND SAFETY BASICS — Content categories most advertisers want to avoid. (e.g., -death -killed -tragedy -"hate crime" — only include if these terms could realistically match the query)
+
+For each negation, explain WHY in your reasoning so the sales team can remove any they disagree with. Place all negations at the end of the query.
+
+Be aggressive — it is better to over-negate and have the sales team remove a few than to under-negate and have ads show next to a controversy. A data scientist would always err on the side of brand safety.` : `NEGATIONS:
 - Do NOT add any negation operators (-term) to the query. The user has opted out of automatic negation keywords. Build the query using only positive match terms.`}
 
 QUERY OUTPUT FORMAT:
