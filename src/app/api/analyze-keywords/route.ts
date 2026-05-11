@@ -7,12 +7,33 @@ import type { KeywordAnalysisResult } from '@/lib/types';
 
 function assembleQuery(terms: string[]): string {
   const cleaned = [...new Set(terms.map(t => t.trim()).filter(Boolean))];
-  return cleaned.map(term => {
+
+  // Separate positive terms from negation terms
+  const positive = cleaned.filter(t => !t.startsWith('-'));
+  const negations = cleaned.filter(t => t.startsWith('-'));
+
+  // Build positive query with OR
+  const positiveQuery = positive.map(term => {
     if (term.includes(' ') && !term.startsWith('#')) {
       return `"${term}"`;
     }
     return term;
   }).join(' OR ');
+
+  // Append negations at the end (no OR, no extra quotes)
+  if (negations.length > 0) {
+    const negationStr = negations.map(term => {
+      // Handle multi-word negations like -"war crimes"
+      const inner = term.slice(1); // remove the leading -
+      if (inner.includes(' ')) {
+        return `-"${inner}"`;
+      }
+      return term;
+    }).join(' ');
+    return `${positiveQuery} ${negationStr}`;
+  }
+
+  return positiveQuery;
 }
 
 export async function POST(request: Request) {
