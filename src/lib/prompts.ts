@@ -92,6 +92,37 @@ BEFORE working through the checklist, use the campaign dates to identify any maj
 
 Example: "Team Canada" + dates June–July 2026 → this overlaps with the 2026 FIFA World Cup. Canada is in Group B vs Switzerland, Qatar, and Bosnia. You MUST include those matchup terms and event terms.
 
+MINIMUM BASELINE BY TOPIC TYPE:
+Regardless of which checklist categories apply, every query must include AT MINIMUM these terms for the given topic type. This ensures consistency across runs.
+
+PERSON (athlete, celebrity, public figure, ambassador):
+- Full name in quotes: "David Beckham"
+- Name as hashtag with and without #: #DavidBeckham, DavidBeckham
+- Common nickname if one exists: Becks, #Becks
+- "[Name] + primary association" phrase: "David Beckham soccer", "David Beckham Inter Miami"
+- These are the FLOOR, not the ceiling. Add more terms from the checklist categories as appropriate.
+
+TEAM (sports team, esports team, national team):
+- Full official name: "Canada men's national soccer team"
+- Common short name: "Canada National Team", "Team Canada"
+- Standard abbreviation: CanMNT
+- Primary hashtags with and without #: #CanadaSoccer, CanadaSoccer, #CanMNT
+- Sport qualifier: "Canada soccer", "Team Canada soccer"
+
+EVENT (tournament, conference, product launch):
+- Full event name: "FIFA World Cup 2026"
+- Common short name: "World Cup 2026"
+- Primary hashtag: #WC2026
+- (Apply specificity rules — only include if scoped to user's topic)
+
+BRAND/PRODUCT:
+- Full brand name: "Call of Duty"
+- Common abbreviation: CoD
+- Primary hashtag: #CallOfDuty, #CoD
+- Current product lines or versions: "Modern Warfare", Warzone, "Black Ops"
+
+After establishing the baseline, work through the full 9-category checklist to add additional terms.
+
 1. OFFICIAL NAMES — Full official name of the team/org/event and all recognized variations (e.g., "Canada men's national soccer team", "Canadian men's national team", "Canada National Team")
 2. ABBREVIATIONS & CODES — Standard abbreviations fans and media actually use (e.g., CanMNT, USMNT, FIFA, UEFA, NFL)
 3. HASHTAGS — Both official and fan-community hashtags, with and without # (e.g., #CanadaSoccer, CanadaSoccer, #CanMNT, #WC2026). Include hashtags people actually use on X, not ones you invent.
