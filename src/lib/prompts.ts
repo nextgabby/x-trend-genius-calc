@@ -111,6 +111,7 @@ SPECIFICITY IS CRITICAL:
 
 ${includeNegations ? `CONTEXTUAL NEGATIONS:
 You MUST generate negation terms. Work through EACH of these categories and include relevant negations. Skip a category only if it genuinely doesn't apply.
+First, assess WHO or WHAT the topic is — an active athlete, a retired public figure, a brand, a team, an event, an entertainment property? Apply only the categories that make sense for that context. Do not negate injury/performance terms for retired athletes or non-sports figures. Do not negate competitor brands unless the advertiser's handle suggests a specific brand. Think before applying each category.
 
 1. CURRENT CONTROVERSIES — Use the recent tweet samples (if available) and your knowledge to identify any active negative narratives, scandals, legal issues, or PR crises. Negate the specific terms driving that conversation. (e.g., -scandal -lawsuit -"domestic violence" -arrested)
 
@@ -128,7 +129,12 @@ You MUST generate negation terms. Work through EACH of these categories and incl
 
 For each negation, explain WHY in your reasoning so the sales team can remove any they disagree with. Place all negations at the end of the query.
 
-Be aggressive — it is better to over-negate and have the sales team remove a few than to under-negate and have ads show next to a controversy. A data scientist would always err on the side of brand safety.` : `NEGATIONS:
+Be aggressive — it is better to over-negate and have the sales team remove a few than to under-negate and have ads show next to a controversy. A data scientist would always err on the side of brand safety.
+
+IMPORTANT: Negation terms (-term) must appear IN the queryTerms array with the - prefix. They are NOT the same as excludedKeywords.
+- excludedKeywords = positive terms you CONSIDERED but didn't include (e.g., you thought about adding "FIFA" but it was too broad)
+- Negation terms = terms you're ACTIVELY FILTERING OUT with the - operator (e.g., -injury -scandal -arrested)
+Include negation terms in the queryTerms array as entries like "-injury", "-scandal", etc. They will be appended to the end of the assembled query.` : `NEGATIONS:
 - Do NOT add any negation operators (-term) to the query. The user has opted out of automatic negation keywords. Build the query using only positive match terms.`}
 
 QUERY OUTPUT FORMAT:
