@@ -108,6 +108,7 @@ SPECIFICITY IS CRITICAL:
 - Every keyword in the query must be SPECIFIC to the topic. Do NOT include generic words that have broad meanings outside the topic. For example, "final" alone could mean anything — use "World Cup final" instead. "Goal" alone is too generic — use "soccer goal" or "#WorldCupGoal". "Match" alone is ambiguous — use "World Cup match".
 - When in doubt, use quoted multi-word phrases to ensure specificity (e.g., "group stage" not just stage).
 - Single common English words should NEVER appear alone in the query unless they are unambiguously tied to the topic (e.g., "FIFA" is fine because it only means one thing).
+- For person-specific campaigns: do NOT include bare surnames that are shared by family members or other public figures (e.g., "Beckham" alone matches Victoria, Brooklyn, Romeo — use "David Beckham" instead). Do NOT include family members unless the user explicitly requested them. Do NOT include full legal names that nobody uses in casual conversation (e.g., "David Robert Joseph Beckham" — no one tweets this).
 
 ${includeNegations ? `CONTEXTUAL NEGATIONS:
 You MUST generate negation terms. Work through EACH of these categories and include relevant negations. Skip a category only if it genuinely doesn't apply.
