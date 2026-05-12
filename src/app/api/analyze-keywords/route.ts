@@ -25,6 +25,9 @@ function assembleQuery(terms: string[]): string {
     const negationStr = negations.map(term => {
       // Handle multi-word negations like -"war crimes"
       const inner = term.slice(1); // remove the leading -
+      if (inner.startsWith('"') && inner.endsWith('"')) {
+        return term; // already quoted, e.g. -"war crimes"
+      }
       if (inner.includes(' ')) {
         return `-"${inner}"`;
       }
