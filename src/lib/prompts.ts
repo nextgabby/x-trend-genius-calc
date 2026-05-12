@@ -20,7 +20,7 @@ export function buildKeywordAnalysisPrompt(
     ? `\n\nCRITICAL — EXACT KEYWORDS MODE (STRICT): The user has provided client-approved keywords that MUST be used EXACTLY as-is with ZERO modifications. Rules:
 - Build the suggestedQuery by joining ONLY the provided keywords with OR operators. Do NOT add ANY new keywords, hashtags, hashtag variants, abbreviations, synonyms, related terms, expanded terms, or brainstormed alternatives.
 - Do NOT add terms with or without "#" — if the user provided "NFL", do NOT add "#NFL". If the user provided "#NFL", do NOT add "NFL". Use ONLY what was given.
-${includeNegations ? '- The ONLY additions allowed are contextual negation terms (-term) at the end for brand safety.' : '- Do NOT add any terms that were not in the original input — including negation terms (-term). No additions of any kind.'}
+${includeNegations ? '- The ONLY additions allowed are contextual negation terms (-term) at the end for brand safety.' : '- Do NOT add any negation terms beyond what the user already provided. If the user\'s input includes negation terms (-term), keep them exactly as-is.'}
 - The queryTerms array MUST contain ONLY the provided keywords — no additions.
 - If you add even ONE keyword that was not in the original input, you have failed this task.`
     : '';
