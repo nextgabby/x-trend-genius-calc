@@ -128,12 +128,13 @@ export default function ThresholdAnalysisTool() {
   const [dailySummaries, setDailySummaries] = useState<DailySummary[]>([]);
   const [recommendation, setRecommendation] = useState<RecommendationWithStats | null>(null);
   const [isRecommendationLoading, setIsRecommendationLoading] = useState(false);
+  const [isAutoExplaining, setIsAutoExplaining] = useState(false);
 
   const onVal = Number(onThreshold);
   const offVal = Number(offThreshold);
 
   const handleAnalyze = async () => {
-    if (!query.trim() || !onThreshold || !offThreshold) return;
+    if (!query.trim() || !onThreshold || !offThreshold || !campaignStartDate || !campaignEndDate) return;
 
     setIsLoading(true);
     setError(null);
@@ -141,19 +142,19 @@ export default function ThresholdAnalysisTool() {
     setHits([]);
     setDailySummaries([]);
     setRecommendation(null);
+    setIsAutoExplaining(false);
 
     try {
-      const now = new Date();
-      const endDate = new Date(now.getTime() - 60_000);
-      const startDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const fetchStartDate = new Date(campaignStartDate + 'T00:00:00Z').toISOString();
+      const fetchEndDate = new Date(campaignEndDate + 'T23:59:59Z').toISOString();
 
       const res = await fetch('/api/fetch-counts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: query.trim(),
-          lookbackStartDate: startDate.toISOString(),
-          lookbackEndDate: endDate.toISOString(),
+          lookbackStartDate: fetchStartDate,
+          lookbackEndDate: fetchEndDate,
         }),
       });
 
@@ -174,6 +175,11 @@ export default function ThresholdAnalysisTool() {
 
       // Fetch Grok-powered recommendation in parallel
       fetchRecommendation(hourlyData);
+
+      // Auto-explain all hits sequentially (avoids rate limits)
+      if (foundHits.length > 0) {
+        autoExplainAllHits(hourlyData, foundHits);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -210,6 +216,76 @@ export default function ThresholdAnalysisTool() {
     } finally {
       setIsRecommendationLoading(false);
     }
+  };
+
+  const autoExplainAllHits = async (hourlyData: HourlyDataPoint[], foundHits: RichThresholdHit[]) => {
+    setIsAutoExplaining(true);
+
+    // Mark all hits as loading initially
+    setHits(foundHits.map((h) => ({ ...h, isLoading: true })));
+
+    const avgVolume =
+      hourlyData.length > 0
+        ? Math.round(hourlyData.reduce((sum, d) => sum + d.count, 0) / hourlyData.length)
+        : 0;
+    const counts = hourlyData.map((d) => d.count).sort((a, b) => a - b);
+    const medianVolume = counts.length > 0 ? counts[Math.floor(counts.length / 2)] : 0;
+
+    for (let i = 0; i < foundHits.length; i++) {
+      const hit = foundHits[i];
+      const surroundingHours = getSurroundingHours(hourlyData, hit.timestamp);
+
+      try {
+        const res = await fetch('/api/analyze-threshold-hit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: query.trim(),
+            campaignStartDate: campaignStartDate || undefined,
+            campaignEndDate: campaignEndDate || undefined,
+            spike: {
+              timestamp: hit.timestamp,
+              peakVolume: hit.count,
+              avgVolume,
+              medianVolume,
+              spikeDurationHours: hit.durationHours,
+              surroundingHours,
+              eventHours: hit.eventHours,
+            },
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Failed to analyze');
+        }
+
+        const result: TrendExplanation = await res.json();
+        setHits((prev) =>
+          prev.map((h, idx) =>
+            idx === i
+              ? {
+                  ...h,
+                  explanation: result.explanation,
+                  keyEvents: result.keyEvents,
+                  confidence: result.confidence,
+                  isLoading: false,
+                }
+              : h
+          )
+        );
+      } catch (err) {
+        setHits((prev) =>
+          prev.map((h, idx) =>
+            idx === i
+              ? { ...h, isLoading: false, error: err instanceof Error ? err.message : 'Failed' }
+              : h
+          )
+        );
+      }
+    }
+
+    setIsAutoExplaining(false);
   };
 
   const handleExplainHit = async (index: number) => {
@@ -299,7 +375,7 @@ export default function ThresholdAnalysisTool() {
       <Card>
         <h2 className="text-xl font-bold text-white mb-4">Threshold Analysis</h2>
         <p className="text-x-gray text-sm mb-6">
-          Test your thresholds against the last 7 days of real data. See how often
+          Test your thresholds against your campaign period&apos;s real data. See how often
           they would trigger and get per-spike explanations from Grok.
         </p>
 
@@ -320,7 +396,7 @@ export default function ThresholdAnalysisTool() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-x-lightgray mb-1">
-                Campaign Start
+                Campaign Start <span className="text-red-500">*</span>
               </label>
               <input
                 type="date"
@@ -331,7 +407,7 @@ export default function ThresholdAnalysisTool() {
             </div>
             <div>
               <label className="block text-sm font-medium text-x-lightgray mb-1">
-                Campaign End
+                Campaign End <span className="text-red-500">*</span>
               </label>
               <input
                 type="date"
@@ -376,7 +452,7 @@ export default function ThresholdAnalysisTool() {
             variant="primary"
             size="lg"
             isLoading={isLoading}
-            disabled={!query.trim() || !onThreshold || !offThreshold}
+            disabled={!query.trim() || !onThreshold || !offThreshold || !campaignStartDate || !campaignEndDate}
             className="w-full"
           >
             Analyze
@@ -395,7 +471,7 @@ export default function ThresholdAnalysisTool() {
           {/* Chart */}
           <Card>
             <h3 className="text-lg font-bold text-white mb-4">
-              7-Day Volume with Thresholds
+              Campaign Period Volume with Thresholds
             </h3>
             <div className="bg-black rounded-xl border border-x-border p-4">
               <ThresholdChart
@@ -555,10 +631,22 @@ export default function ThresholdAnalysisTool() {
               Peak hour shown for each event.
             </p>
 
+            {isAutoExplaining && (
+              <div className="flex items-center gap-3 mb-4 p-3 rounded-lg bg-x-blue/10 border border-x-blue/20">
+                <svg className="animate-spin h-4 w-4 text-x-blue flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <span className="text-x-blue text-sm">
+                  Grok is explaining threshold hits ({hits.filter((h) => h.explanation || h.error).length}/{hits.length} complete)...
+                </span>
+              </div>
+            )}
+
             {hits.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-x-gray text-sm">
-                  No threshold hits in the past 7 days.
+                  No threshold hits during the campaign period.
                 </p>
               </div>
             ) : (
@@ -580,13 +668,13 @@ export default function ThresholdAnalysisTool() {
                           ({hit.durationHours}h duration)
                         </span>
                       </div>
-                      {!hit.explanation && !hit.isLoading && (
+                      {hit.error && !hit.isLoading && (
                         <Button
                           onClick={() => handleExplainHit(index)}
                           variant="ghost"
                           size="sm"
                         >
-                          Explain with Grok
+                          Retry Explanation
                         </Button>
                       )}
                       {hit.isLoading && (

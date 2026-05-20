@@ -466,8 +466,8 @@ Query: ${query}${campaignStartDate && campaignEndDate ? `\nTargeted Campaign Per
 SPIKE SUMMARY:
 - Peak Timestamp: ${spike.timestamp}
 - Peak Volume: ${spike.peakVolume} posts/hour
-- 7-Day Average Volume: ${spike.avgVolume} posts/hour
-- 7-Day Median Volume: ${spike.medianVolume} posts/hour
+- Data Period Average Volume: ${spike.avgVolume} posts/hour
+- Data Period Median Volume: ${spike.medianVolume} posts/hour
 - Spike Magnitude: ${multiplier}x the average, ${medianMultiplier}x the median
 - Spike Duration: ${spike.spikeDurationHours} consecutive hour(s) above threshold
 
@@ -538,19 +538,19 @@ export function buildThresholdRecommendationPrompt(
 
   return `You are an expert Advertising Trigger System analyst for X (Twitter) Trend Genius campaigns. Today's date is ${new Date().toISOString().split('T')[0]}.
 
-A user wants to evaluate whether their ON/OFF thresholds are well-calibrated for the following query. You have been given 7 days of ACTUAL hourly volume statistics from X. Base your recommendation ENTIRELY on this data.
+A user wants to evaluate whether their ON/OFF thresholds are well-calibrated for the following query. You have been given ACTUAL hourly volume statistics from X covering the data window below. Base your recommendation ENTIRELY on this data.
 
 Query: ${query}
 Current ON Threshold: ${onThreshold} posts/hour
 Current OFF Threshold: ${offThreshold} posts/hour
-Data Window (last 7 days): ${dataStartDate} to ${dataEndDate}${campaignStartDate && campaignEndDate ? `\nTargeted Campaign Period: ${campaignStartDate} to ${campaignEndDate}` : '\nTargeted Campaign Period: Not specified'}
+Data Window: ${dataStartDate} to ${dataEndDate}${campaignStartDate && campaignEndDate ? `\nTargeted Campaign Period: ${campaignStartDate} to ${campaignEndDate}` : '\nTargeted Campaign Period: Not specified'}
 
 EXACT THRESHOLD HIT COUNTS (computed from raw data — these are facts, not estimates):
 - Hours above ON threshold (${onThreshold}): ${hoursAboveOn} out of ${totalHours} hours (${pctAboveOn}%)
 - Hours above OFF threshold (${offThreshold}): ${hoursAboveOff} out of ${totalHours} hours (${pctAboveOff}%)
 - ON-OFF gap: ${onOffGapPct}%
 
-7-DAY HOURLY VOLUME STATISTICS (${stats.totalDaysInData} days, ${stats.totalDataPoints} hours of data):
+HOURLY VOLUME STATISTICS (${stats.totalDaysInData} days, ${stats.totalDataPoints} hours of data):
 - Mean: ${stats.mean} posts/hour
 - Median: ${stats.median} posts/hour
 - Standard Deviation: ${stats.stdDev}
@@ -577,7 +577,7 @@ Spike Analysis (spikes = contiguous periods above P90):
 - Calendar days with spike activity: ${stats.spikeDays} out of ${stats.totalDaysInData} days
 
 STEP 1 — TOPIC & TIMING ANALYSIS (CRITICAL — DO THIS FIRST):
-Before evaluating thresholds, analyze the query topic to determine whether the 7-day data window (${dataStartDate} to ${dataEndDate}) is representative of the volume the campaign will actually see.
+Before evaluating thresholds, analyze the query topic to determine whether the data window (${dataStartDate} to ${dataEndDate}) is representative of the volume the campaign will actually see.
 
 Many topics have MULTIPLE conversation drivers that operate on different cycles. Do NOT force a single label — instead, identify ALL relevant patterns and determine which one(s) are active in this data window.
 
