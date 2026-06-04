@@ -19,7 +19,8 @@ export async function fetchTweetCounts(
     throw new Error('X_API_BEARER_TOKEN environment variable is not set');
   }
 
-  console.log(`[X API] Fetching counts — query: "${query}"`);
+  console.log(`[X API] Fetching counts`);
+  console.log(`[X API] Query: "${query}"`);
   console.log(`[X API] Period: ${startTime} → ${endTime}`);
 
   const allData: HourlyDataPoint[] = [];

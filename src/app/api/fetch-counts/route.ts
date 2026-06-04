@@ -15,7 +15,8 @@ export async function POST(request: Request) {
     }
 
     console.log(`\n=== /api/fetch-counts ===`);
-    console.log(`[Input] query: "${query.substring(0, 80)}...", lookback: ${lookbackStartDate} → ${lookbackEndDate}`);
+    console.log(`[Input] query: "${query}"`);
+    console.log(`[Input] lookbackStartDate: ${lookbackStartDate}, lookbackEndDate: ${lookbackEndDate}`);
 
     const startTime = new Date(lookbackStartDate).toISOString();
 
@@ -24,9 +25,12 @@ export async function POST(request: Request) {
     const safeMax = subMinutes(new Date(), 1);
     const endTime = requestedEnd > safeMax ? safeMax.toISOString() : requestedEnd.toISOString();
 
+    console.log(`[Resolved] startTime: ${startTime}, endTime: ${endTime}${requestedEnd > safeMax ? ' (clamped to now-1m)' : ''}`);
+
     const result = await fetchTweetCounts(query, startTime, endTime);
 
     console.log(`[Result] ${result.data.length} data points, ${result.totalTweets.toLocaleString()} total tweets`);
+    console.log(`[Result] First point: ${result.data[0]?.timestamp} (${result.data[0]?.count}), Last point: ${result.data[result.data.length - 1]?.timestamp} (${result.data[result.data.length - 1]?.count})`);
 
     return NextResponse.json(result);
   } catch (error) {

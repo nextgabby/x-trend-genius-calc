@@ -97,9 +97,11 @@ export async function POST(request: Request) {
     }
 
     console.log(`[Result] valid: ${result.isValid}, seasonality: ${result.seasonality}, lookback: ${result.lookbackStartDate} → ${result.lookbackEndDate}`);
-    console.log(`[Result] queryTerms: ${result.queryTerms?.length ?? 0} terms → ${result.suggestedQuery?.substring(0, 120)}...`);
+    console.log(`[Result] queryTerms (${result.queryTerms?.length ?? 0}): ${JSON.stringify(result.queryTerms)}`);
+    console.log(`[Result] assembledQuery: "${result.suggestedQuery}"`);
     if (result.lookbackQuery) {
-      console.log(`[Result] lookbackTerms: ${result.lookbackQueryTerms?.length ?? 0} terms → ${result.lookbackQuery.substring(0, 120)}...`);
+      console.log(`[Result] lookbackTerms (${result.lookbackQueryTerms?.length ?? 0}): ${JSON.stringify(result.lookbackQueryTerms)}`);
+      console.log(`[Result] assembledLookbackQuery: "${result.lookbackQuery}"`);
     }
 
     return NextResponse.json(result);

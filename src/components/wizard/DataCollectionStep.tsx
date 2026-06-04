@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useWizard } from '@/context/WizardContext';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
@@ -23,6 +23,10 @@ export default function DataCollectionStep() {
     prevStep,
   } = useWizard();
 
+  // Pin the exact query used on first fetch — retries reuse the same string.
+  // Ref resets on unmount (e.g. user navigates back to Step 1 and changes query).
+  const fetchQueryRef = useRef<{ query: string; startDate: string; endDate: string } | null>(null);
+
   useEffect(() => {
     if (countsData) return;
 
@@ -31,15 +35,26 @@ export default function DataCollectionStep() {
       setError(null);
 
       try {
-        // Use the lookback query (adapted for historical period) for fetching counts
-        const lookbackQuery = keywordAnalysis?.lookbackQuery || approvedQuery;
+        // On first fetch, compute and pin the query; on retry, reuse pinned query
+        if (!fetchQueryRef.current) {
+          fetchQueryRef.current = {
+            query: keywordAnalysis?.lookbackQuery || approvedQuery,
+            startDate: keywordAnalysis?.lookbackStartDate || '',
+            endDate: keywordAnalysis?.lookbackEndDate || '',
+          };
+        }
+        const { query: fetchQuery, startDate, endDate } = fetchQueryRef.current;
+
+        console.log(`[DataCollectionStep] Query (pinned): "${fetchQuery}"`);
+        console.log(`[DataCollectionStep] Dates: ${startDate} → ${endDate}`);
+
         const res = await fetch('/api/fetch-counts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            query: lookbackQuery,
-            lookbackStartDate: keywordAnalysis?.lookbackStartDate,
-            lookbackEndDate: keywordAnalysis?.lookbackEndDate,
+            query: fetchQuery,
+            lookbackStartDate: startDate,
+            lookbackEndDate: endDate,
           }),
         });
 
@@ -49,6 +64,7 @@ export default function DataCollectionStep() {
         }
 
         const result = await res.json();
+        console.log(`[DataCollectionStep] Result: ${result.data?.length} points, ${result.totalTweets?.toLocaleString()} total tweets`);
         setCountsData(result);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch tweet counts');

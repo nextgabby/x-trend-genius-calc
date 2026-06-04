@@ -36,6 +36,7 @@ export async function callGrok<T>(prompt: string): Promise<T> {
       model: GROK_MODEL,
       messages,
       temperature: 0,
+      seed: 0,
       response_format: { type: 'json_object' },
     }),
   });
@@ -56,7 +57,8 @@ export async function callGrok<T>(prompt: string): Promise<T> {
   }
 
   console.log(`[Grok] Tokens used — prompt: ${usage?.prompt_tokens}, completion: ${usage?.completion_tokens}, total: ${usage?.total_tokens}`);
-  console.log(`[Grok] Response preview: ${content.substring(0, 200)}...`);
+  console.log(`[Grok] system_fingerprint: ${data.system_fingerprint ?? 'none'}`);
+  console.log(`[Grok] Full response:\n${content}`);
 
   return JSON.parse(content) as T;
 }

@@ -17,9 +17,14 @@ export async function POST(request: Request) {
     }
 
     console.log(`\n=== /api/calculate-thresholds ===`);
-    console.log(`[Input] query: "${query.substring(0, 80)}...", ${data.length} data points, seasonality: ${seasonality}, budget: $${totalBudget.toLocaleString()}`);
+    console.log(`[Input] query: "${query}"`);
+    if (lookbackQuery) console.log(`[Input] lookbackQuery: "${lookbackQuery}"`);
+    console.log(`[Input] ${data.length} data points, seasonality: ${seasonality}, budget: $${totalBudget.toLocaleString()}`);
 
     const hourlyData: HourlyDataPoint[] = data;
+    const dataChecksum = hourlyData.reduce((sum: number, d: HourlyDataPoint) => sum + d.count, 0);
+    console.log(`[Input] Data checksum (sum of all counts): ${dataChecksum.toLocaleString()}`);
+
     const stats = computeStats(hourlyData);
 
     console.log(`[Stats] mean: ${stats.mean}, median: ${stats.median}, stdDev: ${stats.stdDev}, p75: ${stats.p75}, p90: ${stats.p90}, p95: ${stats.p95}`);
@@ -34,6 +39,8 @@ export async function POST(request: Request) {
     );
 
     const result = await callGrok<ThresholdRecommendation>(prompt);
+
+    console.log(`[Grok raw] ON: ${result.onThreshold}, OFF: ${result.offThreshold}, consecutive: ${result.consecutiveHours}h, confidence: ${result.confidence}`);
 
     // Ensure ON > OFF after rounding
     const cleaned = cleanRound(result.onThreshold, result.offThreshold);
