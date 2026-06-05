@@ -1,5 +1,5 @@
 const GROK_API_URL = 'https://api.x.ai/v1/chat/completions';
-const GROK_MODEL = 'grok-4.3';
+const GROK_MODEL = 'grok-4.3-latest';
 
 interface GrokMessage {
   role: 'system' | 'user' | 'assistant';
@@ -36,7 +36,7 @@ export async function callGrok<T>(prompt: string): Promise<T> {
       model: GROK_MODEL,
       messages,
       temperature: 0,
-      seed: 0,
+      seed: 1,
       response_format: { type: 'json_object' },
     }),
   });

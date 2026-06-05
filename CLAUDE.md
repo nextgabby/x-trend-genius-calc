@@ -286,7 +286,7 @@ ThresholdAnalysisStep must pass **both the campaign query AND the lookback query
 7. **excludedKeywords[] is structured** — array of `{term, reason}` objects, not a plain string
 8. **queryWarnings[] is always returned** — empty array if no warnings, populated when trigger reliability is uncertain
 9. **suggestedKeywords was removed** — redundant with queryTerms[] and excludedKeywords[]
-10. **Grok model: grok-4.3** — do not use grok-3 (retired)
+10. **Grok model: grok-4.3-latest** — do not use grok-3 (retired) or bare grok-4.3 (use the -latest alias)
 11. **AND/OR/SINGLE parsing lives in InputStep** — server and Grok receive the parsed operator, they don't re-parse
 
 ---
