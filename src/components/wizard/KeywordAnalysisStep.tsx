@@ -7,6 +7,7 @@ import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import type { KeywordAnalysisResult } from '@/lib/types';
+import { ensureXQuerySyntax } from '@/lib/query-syntax';
 
 const SEASONALITY_OPTIONS: { value: KeywordAnalysisResult['seasonality']; label: string }[] = [
   { value: 'seasonal', label: 'Seasonal' },
@@ -114,17 +115,25 @@ export default function KeywordAnalysisStep() {
 
   const handleApprove = () => {
     if (keywordAnalysis) {
+      // Only sanitize X AND/parens syntax in exact-keywords mode
+      const safeQuery = campaignInput.useExactKeywords
+        ? ensureXQuerySyntax(editedQuery)
+        : editedQuery;
+      const safeLookback = campaignInput.useExactKeywords && keywordAnalysis.lookbackQuery
+        ? ensureXQuerySyntax(editedLookbackQuery)
+        : editedLookbackQuery;
+
       const changed =
-        editedQuery !== keywordAnalysis.suggestedQuery ||
+        safeQuery !== keywordAnalysis.suggestedQuery ||
         editedSeasonality !== keywordAnalysis.seasonality ||
         editedLookbackStart !== keywordAnalysis.lookbackStartDate ||
         editedLookbackEnd !== keywordAnalysis.lookbackEndDate ||
-        (keywordAnalysis.lookbackQuery && editedLookbackQuery !== keywordAnalysis.lookbackQuery);
+        (keywordAnalysis.lookbackQuery && safeLookback !== keywordAnalysis.lookbackQuery);
 
       setKeywordAnalysis({
         ...keywordAnalysis,
-        suggestedQuery: editedQuery,
-        ...(keywordAnalysis.lookbackQuery ? { lookbackQuery: editedLookbackQuery } : {}),
+        suggestedQuery: safeQuery,
+        ...(keywordAnalysis.lookbackQuery ? { lookbackQuery: safeLookback } : {}),
         seasonality: editedSeasonality,
         lookbackStartDate: editedLookbackStart,
         lookbackEndDate: editedLookbackEnd,
@@ -134,8 +143,14 @@ export default function KeywordAnalysisStep() {
         setCountsData(null as unknown as Parameters<typeof setCountsData>[0]);
         setThresholdRecommendation(null as unknown as Parameters<typeof setThresholdRecommendation>[0]);
       }
+
+      setApprovedQuery(safeQuery);
+      nextStep();
+      return;
     }
-    setApprovedQuery(editedQuery);
+    setApprovedQuery(
+      campaignInput.useExactKeywords ? ensureXQuerySyntax(editedQuery) : editedQuery
+    );
     nextStep();
   };
 
