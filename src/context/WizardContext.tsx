@@ -31,6 +31,7 @@ const initialState: WizardState = {
     campaignStartDate: '',
     campaignEndDate: '',
     keywords: [],
+    rawKeywordInput: '',
     totalBudget: 0,
     useExactKeywords: false,
     includeNegations: false,

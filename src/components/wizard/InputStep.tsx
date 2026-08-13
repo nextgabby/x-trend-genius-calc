@@ -11,9 +11,10 @@ export default function InputStep() {
   const [startDate, setStartDate] = useState(campaignInput.campaignStartDate);
   const [endDate, setEndDate] = useState(campaignInput.campaignEndDate);
   const [keywordInput, setKeywordInput] = useState(
-    campaignInput.keywordOperator === 'AND'
-      ? campaignInput.keywords.join(' AND ')
-      : campaignInput.keywords.join(', ')
+    campaignInput.rawKeywordInput ||
+      (campaignInput.keywordOperator === 'AND'
+        ? campaignInput.keywords.join(' AND ')
+        : campaignInput.keywords.join(', '))
   );
   const [budget, setBudget] = useState(campaignInput.totalBudget ? campaignInput.totalBudget.toString() : '');
   const [useExact, setUseExact] = useState(campaignInput.useExactKeywords);
@@ -45,6 +46,7 @@ export default function InputStep() {
       campaignStartDate: startDate,
       campaignEndDate: endDate,
       keywords,
+      rawKeywordInput: trimmed,
       totalBudget: Number(budget),
       useExactKeywords: useExact,
       includeNegations,

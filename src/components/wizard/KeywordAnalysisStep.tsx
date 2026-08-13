@@ -58,6 +58,7 @@ export default function KeywordAnalysisStep() {
         const body: Record<string, unknown> = {
           handle: campaignInput.handle,
           keywords: campaignInput.keywords,
+          rawKeywordInput: campaignInput.rawKeywordInput,
           campaignStartDate: campaignInput.campaignStartDate,
           campaignEndDate: campaignInput.campaignEndDate,
           useExactKeywords: campaignInput.useExactKeywords,

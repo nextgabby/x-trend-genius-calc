@@ -22,27 +22,131 @@ function assembleQuery(terms: string[]): string {
 
   // Append negations at the end (no OR, no extra quotes)
   if (negations.length > 0) {
-    const negationStr = negations.map(term => {
-      // Handle multi-word negations like -"war crimes"
-      const inner = term.slice(1); // remove the leading -
-      if (inner.startsWith('"') && inner.endsWith('"')) {
-        return term; // already quoted, e.g. -"war crimes"
-      }
-      if (inner.includes(' ')) {
-        return `-"${inner}"`;
-      }
-      return term;
-    }).join(' ');
+    const negationStr = negations.map(term => formatNegationTerm(term)).join(' ');
     return `${positiveQuery} ${negationStr}`;
   }
 
   return positiveQuery;
 }
 
+function formatNegationTerm(term: string): string {
+  // Handle multi-word negations like -"war crimes"
+  const inner = term.slice(1); // remove the leading -
+  if (inner.startsWith('"') && inner.endsWith('"')) {
+    return term; // already quoted, e.g. -"war crimes"
+  }
+  if (inner.includes(' ')) {
+    return `-"${inner}"`;
+  }
+  return term;
+}
+
+/**
+ * Exact-keywords mode: preserve AND/OR/parentheses and keyword text;
+ * only fix syntax by quoting multi-word phrases that aren't already quoted.
+ */
+function normalizeExactQuery(input: string): string {
+  const src = input.replace(/\s+/g, ' ').trim();
+  if (!src) return '';
+
+  const tokens: string[] = [];
+  let i = 0;
+
+  while (i < src.length) {
+    if (src[i] === ' ') {
+      i++;
+      continue;
+    }
+
+    // Parentheses
+    if (src[i] === '(' || src[i] === ')') {
+      tokens.push(src[i]);
+      i++;
+      continue;
+    }
+
+    // Already-quoted phrase
+    if (src[i] === '"') {
+      let j = i + 1;
+      while (j < src.length && src[j] !== '"') j++;
+      tokens.push(src.slice(i, Math.min(j + 1, src.length)));
+      i = j < src.length ? j + 1 : src.length;
+      continue;
+    }
+
+    // Negation: -term or -"multi word"
+    if (src[i] === '-' && i + 1 < src.length && src[i + 1] !== ' ') {
+      if (src[i + 1] === '"') {
+        let j = i + 2;
+        while (j < src.length && src[j] !== '"') j++;
+        tokens.push(src.slice(i, Math.min(j + 1, src.length)));
+        i = j < src.length ? j + 1 : src.length;
+      } else {
+        let j = i + 1;
+        while (j < src.length && src[j] !== ' ' && src[j] !== '(' && src[j] !== ')') j++;
+        tokens.push(src.slice(i, j));
+        i = j;
+      }
+      continue;
+    }
+
+    // AND / OR operators (case-insensitive)
+    const andMatch = src.slice(i).match(/^AND\b/i);
+    if (andMatch) {
+      tokens.push('AND');
+      i += andMatch[0].length;
+      continue;
+    }
+    const orMatch = src.slice(i).match(/^OR\b/i);
+    if (orMatch) {
+      tokens.push('OR');
+      i += orMatch[0].length;
+      continue;
+    }
+
+    // Leaf term: consume until operator, paren, or quote boundary
+    let j = i;
+    while (j < src.length) {
+      if (src[j] === '(' || src[j] === ')' || src[j] === '"') break;
+      if (src[j] === ' ') {
+        const rest = src.slice(j + 1);
+        if (/^AND\b/i.test(rest) || /^OR\b/i.test(rest) || rest.startsWith('(') || rest.startsWith(')')) {
+          break;
+        }
+      }
+      j++;
+    }
+    const term = src.slice(i, j).trim();
+    if (term) {
+      if (term.includes(' ') && !term.startsWith('#')) {
+        tokens.push(`"${term}"`);
+      } else {
+        tokens.push(term);
+      }
+    }
+    i = j;
+  }
+
+  // Join with spaces; no space after '(' or before ')'
+  let out = '';
+  for (let t = 0; t < tokens.length; t++) {
+    const tok = tokens[t];
+    const prev = tokens[t - 1];
+    if (t === 0) {
+      out = tok;
+    } else if (tok === ')' || prev === '(') {
+      out += tok;
+    } else {
+      out += ` ${tok}`;
+    }
+  }
+  return out;
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { handle, keywords, campaignStartDate, campaignEndDate, seasonalityOverride, useExactKeywords, includeNegations, keywordOperator } = body;
+    const { handle, keywords, rawKeywordInput, campaignStartDate, campaignEndDate, seasonalityOverride, useExactKeywords, includeNegations, keywordOperator } = body;
 
     if (!handle || !keywords?.length || !campaignStartDate || !campaignEndDate) {
       return NextResponse.json(
@@ -52,7 +156,7 @@ export async function POST(request: Request) {
     }
 
     console.log(`\n=== /api/analyze-keywords ===`);
-    console.log(`[Input] handle: @${handle}, keywords: [${keywords.join(', ')}], dates: ${campaignStartDate} → ${campaignEndDate}${seasonalityOverride ? `, seasonality override: ${seasonalityOverride}` : ''}`);
+    console.log(`[Input] handle: @${handle}, keywords: [${keywords.join(', ')}], dates: ${campaignStartDate} → ${campaignEndDate}${seasonalityOverride ? `, seasonality override: ${seasonalityOverride}` : ''}${useExactKeywords ? ', exact keywords mode' : ''}`);
 
     // Fetch recent tweet samples for real-time context (best-effort)
     let recentTweetSamples: TweetSampleForPrompt[] = [];
@@ -81,7 +185,27 @@ export async function POST(request: Request) {
     const result = await callGrok<KeywordAnalysisResult>(prompt);
 
     // Assemble query strings from terms arrays (server-side deterministic assembly)
-    if (result.queryTerms && Array.isArray(result.queryTerms)) {
+    if (useExactKeywords) {
+      // Exact mode: keep user's AND/OR/parens; only fix quoting syntax
+      const exactSource = (typeof rawKeywordInput === 'string' && rawKeywordInput.trim())
+        ? rawKeywordInput
+        : keywords.join(keywordOperator === 'AND' ? ' AND ' : ' OR ');
+      let exactQuery = normalizeExactQuery(exactSource);
+
+      // Opt-in brand-safety negations from Grok still append at the end
+      if (includeNegations && result.queryTerms && Array.isArray(result.queryTerms)) {
+        const existingLower = exactQuery.toLowerCase();
+        const grokNegations = result.queryTerms
+          .filter((t: string) => typeof t === 'string' && t.startsWith('-'))
+          .map((t: string) => formatNegationTerm(t.trim()))
+          .filter((t: string) => t && !existingLower.includes(t.toLowerCase()));
+        if (grokNegations.length > 0) {
+          exactQuery = `${exactQuery} ${grokNegations.join(' ')}`;
+        }
+      }
+
+      result.suggestedQuery = exactQuery;
+    } else if (result.queryTerms && Array.isArray(result.queryTerms)) {
       result.suggestedQuery = assembleQuery(result.queryTerms);
     }
     if (result.lookbackQueryTerms && Array.isArray(result.lookbackQueryTerms)) {

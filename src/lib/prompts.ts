@@ -17,11 +17,13 @@ export function buildKeywordAnalysisPrompt(
     : '';
 
   const exactKeywordsInstruction = useExactKeywords
-    ? `\n\nCRITICAL — EXACT KEYWORDS MODE (STRICT): The user has provided client-approved keywords that MUST be used EXACTLY as-is with ZERO modifications. Rules:
-- Build the suggestedQuery by joining ONLY the provided keywords with OR operators. Do NOT add ANY new keywords, hashtags, hashtag variants, abbreviations, synonyms, related terms, expanded terms, or brainstormed alternatives.
+    ? `\n\nCRITICAL — EXACT KEYWORDS MODE (STRICT): The user has provided a client-approved search query that MUST keep the SAME keywords and the SAME boolean structure. Rules:
+- PRESERVE the user's AND / OR / parentheses grouping exactly. Do NOT flatten the query into all ORs. Example: "(A OR B) AND (C OR D)" must stay an AND of two OR-groups — never become "A OR B OR C OR D".
+- Do NOT add ANY new keywords, hashtags, hashtag variants, abbreviations, synonyms, related terms, expanded terms, or brainstormed alternatives.
+- Do NOT remove, rename, or swap any user-provided keyword.
 - Do NOT add terms with or without "#" — if the user provided "NFL", do NOT add "#NFL". If the user provided "#NFL", do NOT add "NFL". Use ONLY what was given.
+- The server will normalize quoting (multi-word phrases) and assemble the final suggestedQuery from the user's exact input. Your queryTerms should list the leaf terms from the user's input only (no boolean operators), for reference — do not invent structure via queryTerms.
 ${includeNegations ? '- The ONLY additions allowed are contextual negation terms (-term) at the end for brand safety.' : '- Do NOT add any negation terms beyond what the user already provided. If the user\'s input includes negation terms (-term), keep them exactly as-is.'}
-- The queryTerms array MUST contain ONLY the provided keywords — no additions.
 - If you add even ONE keyword that was not in the original input, you have failed this task.`
     : '';
 

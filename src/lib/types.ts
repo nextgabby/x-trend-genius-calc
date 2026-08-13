@@ -3,6 +3,7 @@ export interface CampaignInput {
   campaignStartDate: string; // ISO date string
   campaignEndDate: string;
   keywords: string[];
+  rawKeywordInput: string; // Exact text from the keywords field (preserves AND/OR/parens)
   totalBudget: number; // Total ad spend in USD
   useExactKeywords: boolean; // If true, use keywords as-is; if false, let Grok optimize
   includeNegations: boolean; // If true, Grok adds negation terms (-term) for brand safety
