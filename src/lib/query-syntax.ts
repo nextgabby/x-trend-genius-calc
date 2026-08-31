@@ -2,7 +2,8 @@
  * X search syntax helpers.
  *
  * X does NOT allow a bare AND operator — AND is a space between clauses.
- * OR must be uppercase. Parentheses group expressions.
+ * OR must be uppercase. Commas are treated as OR (common strategist paste format).
+ * Parentheses group expressions.
  * Precedence: AND binds tighter than OR, so OR-groups joined by AND must be parenthesized:
  *   (a OR b) (c OR d)  — not  a OR b c OR d
  */
@@ -23,6 +24,13 @@ function tokenizeQuery(input: string): string[] {
 
   while (i < src.length) {
     if (src[i] === ' ') {
+      i++;
+      continue;
+    }
+
+    // Comma = OR (strategist paste format: "a, b, c")
+    if (src[i] === ',') {
+      tokens.push('OR');
       i++;
       continue;
     }
@@ -50,7 +58,7 @@ function tokenizeQuery(input: string): string[] {
         i = j < src.length ? j + 1 : src.length;
       } else {
         let j = i + 1;
-        while (j < src.length && src[j] !== ' ' && src[j] !== '(' && src[j] !== ')') j++;
+        while (j < src.length && src[j] !== ' ' && src[j] !== '(' && src[j] !== ')' && src[j] !== ',') j++;
         tokens.push(src.slice(i, j));
         i = j;
       }
@@ -71,10 +79,10 @@ function tokenizeQuery(input: string): string[] {
       continue;
     }
 
-    // Leaf term: consume until operator, paren, quote, or negation boundary
+    // Leaf term: consume until operator, paren, quote, comma, or negation boundary
     let j = i;
     while (j < src.length) {
-      if (src[j] === '(' || src[j] === ')' || src[j] === '"') break;
+      if (src[j] === '(' || src[j] === ')' || src[j] === '"' || src[j] === ',') break;
       if (src[j] === ' ') {
         const rest = src.slice(j + 1);
         if (
@@ -82,6 +90,7 @@ function tokenizeQuery(input: string): string[] {
           /^OR\b/i.test(rest) ||
           rest.startsWith('(') ||
           rest.startsWith(')') ||
+          rest.startsWith(',') ||
           // Negation terms are separate tokens: "Jordan -scandal"
           (rest.startsWith('-') && rest.length > 1 && rest[1] !== ' ')
         ) {
@@ -95,7 +104,22 @@ function tokenizeQuery(input: string): string[] {
     i = j;
   }
 
-  return tokens;
+  // Collapse duplicate ORs from "a, OR b" or trailing/leading commas
+  const cleaned: string[] = [];
+  for (const tok of tokens) {
+    if (tok === 'OR' && (cleaned.length === 0 || cleaned[cleaned.length - 1] === 'OR' || cleaned[cleaned.length - 1] === '(')) {
+      continue;
+    }
+    if (tok === 'OR' && cleaned.length > 0 && cleaned[cleaned.length - 1] === 'AND') {
+      continue; // "AND ," noise — keep AND, drop OR
+    }
+    cleaned.push(tok);
+  }
+  while (cleaned.length > 0 && (cleaned[cleaned.length - 1] === 'OR' || cleaned[cleaned.length - 1] === 'AND')) {
+    cleaned.pop();
+  }
+
+  return cleaned;
 }
 
 function joinTokens(tokens: string[]): string {
@@ -161,8 +185,9 @@ function splitTopLevelAnd(tokens: string[]): string[][] {
 }
 
 /**
- * Normalize a query for the X search API:
- * - Quote multi-word phrases (when quoteMultiWord is true — exact-keywords mode)
+ * Normalize a query for the X search API (exact-keywords mode):
+ * - Convert commas to OR (strategist paste format)
+ * - Quote multi-word phrases (when quoteMultiWord is true)
  * - Convert bare AND to implicit AND (space)
  * - Parenthesize OR-groups that are AND-joined so precedence stays correct
  * - Keep OR, parentheses, negations, and keyword text
@@ -189,9 +214,14 @@ export function normalizeExactQuery(
   }
 
   const clauses = splitTopLevelAnd(tokens);
+  // Multiple AND clauses → wrap each side in parentheses (X uses space for AND)
+  // Single clause with top-level OR → wrap so the OR group is explicit
+  const andJoined = clauses.length > 1;
   const rendered = clauses.map((clause) => {
     if (clause.length === 0) return '';
-    const needsParens = hasTopLevelOr(clause) && !isFullyParenthesized(clause);
+    const needsParens =
+      !isFullyParenthesized(clause) &&
+      (andJoined || hasTopLevelOr(clause));
     const body = joinTokens(clause);
     return needsParens ? `(${body})` : body;
   }).filter(Boolean);
@@ -203,12 +233,11 @@ export function normalizeExactQuery(
   return out;
 }
 
-/** Safety net: fix invalid AND / grouping without re-quoting terms. */
+/**
+ * Exact-mode: always produce valid X syntax from the user's keywords
+ * (commas→OR, AND→parenthesized space-AND, quote multi-word phrases).
+ */
 export function ensureXQuerySyntax(query: string): string {
   if (!query?.trim()) return query;
-  if (!/\bAND\b/i.test(query)) {
-    // Still parenthesize ambiguous OR+space patterns? Skip if no AND — leave working queries alone.
-    return query.trim();
-  }
-  return normalizeExactQuery(query, { quoteMultiWord: false });
+  return normalizeExactQuery(query, { quoteMultiWord: true });
 }

@@ -120,7 +120,14 @@ export default function InputStep() {
             rows={3}
             className="w-full bg-black border border-x-border rounded-lg px-3 py-2.5 text-white placeholder-x-gray focus:outline-none focus:border-x-blue focus:ring-1 focus:ring-x-blue resize-none"
           />
-          <p className="text-x-gray text-xs mt-1">Use AND to intersect topics, OR or comma to combine topics, or enter a single topic</p>
+          <p className="text-x-gray text-xs mt-1">
+            Use AND to intersect topics, OR or comma to combine topics, or enter a single topic.
+            {useExact && (
+              <span className="block mt-0.5 text-x-lightgray">
+                Exact mode: commas become OR, multi-word phrases are quoted, AND becomes a space — always valid X search syntax.
+              </span>
+            )}
+          </p>
         </div>
 
         <div className="flex gap-3">

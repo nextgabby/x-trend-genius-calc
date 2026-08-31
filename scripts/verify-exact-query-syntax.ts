@@ -110,9 +110,9 @@ ok('matches expected X-valid query');
 console.log('\n=== Other exact-mode cases ===\n');
 
 const team = normalizeExactQuery('Team Canada AND World Cup');
-assert(team === '"Team Canada" "World Cup"', `got ${team}`);
+assert(team === '("Team Canada") ("World Cup")', `got ${team}`);
 assertNoBareAnd(team, 'Team Canada');
-ok('Team Canada AND World Cup → quoted space-AND');
+ok('Team Canada AND World Cup → parenthesized space-AND');
 
 const orOnly = normalizeExactQuery('NFL OR NBA');
 assert(orOnly === '(NFL OR NBA)' || orOnly === 'NFL OR NBA', `got ${orOnly}`);
@@ -123,9 +123,31 @@ assert(alreadyQuoted.includes('"already quoted"'), 'keeps existing quotes');
 ok('preserves already-quoted phrases');
 
 const withNeg = normalizeExactQuery('Nike AND Jordan -scandal');
-assert(withNeg.endsWith('-scandal'), `negation at end: ${withNeg}`);
+assert(withNeg === '(Nike) (Jordan) -scandal', `AND + negation: ${withNeg}`);
 assertNoBareAnd(withNeg, 'Nike AND Jordan');
-ok(`AND + negation: ${withNeg}`);
+ok(`AND + negation with parens: ${withNeg}`);
+
+console.log('\n=== Comma → OR (strategist paste format) ===\n');
+
+const commaList = normalizeExactQuery('#RollTide, #WarEagle, Auburn, "Arch Manning", "Texas A&M"');
+assert(!commaList.includes(','), `no commas remain: ${commaList}`);
+assert(
+  commaList === '(#RollTide OR #WarEagle OR Auburn OR "Arch Manning" OR "Texas A&M")',
+  `got ${commaList}`
+);
+ok('comma-separated list → OR chain with quotes preserved');
+
+const commaAnd = normalizeExactQuery('#RollTide, Bama AND (Heisman OR "National Championship")');
+assert(
+  commaAnd === '(#RollTide OR Bama) (Heisman OR "National Championship")',
+  `got ${commaAnd}`
+);
+ok('commas + AND → OR group space-ANDed with second group');
+
+const ensureComma = ensureXQuerySyntax('#SEC, #BigTen, "Ohio State"');
+assert(!ensureComma.includes(','), 'ensureXQuerySyntax strips commas');
+assert(ensureComma.includes(' OR '), 'ensureXQuerySyntax converts commas to OR');
+ok('ensureXQuerySyntax fixes commas on approve');
 
 console.log('\n=== ensureXQuerySyntax (exact approve path only) ===\n');
 
@@ -134,11 +156,14 @@ const ensureOut = ensureXQuerySyntax(
 );
 assertNoBareAnd(ensureOut, 'ensureXQuerySyntax');
 assert(ensureOut === '("Shai Gilgeous-Alexander" OR "Nikola Jokic") (points OR rebounds)', `got ${ensureOut}`);
-ok('fixes bare AND without re-quoting');
+ok('fixes bare AND with parenthesized groups on approve');
 
 const untouched = ensureXQuerySyntax('CanMNT OR #CanadaSoccer OR "Canada National Team"');
-assert(untouched === 'CanMNT OR #CanadaSoccer OR "Canada National Team"', 'optimize-style query unchanged when no AND');
-ok('leaves OR-only Grok-style queries alone when no AND');
+assert(
+  untouched === '(CanMNT OR #CanadaSoccer OR "Canada National Team")',
+  `OR-only still normalized/parenthesized: ${untouched}`
+);
+ok('OR-only queries get valid X grouping on exact normalize');
 
 console.log('\n=== Route branching: exact vs Grok optimize ===\n');
 

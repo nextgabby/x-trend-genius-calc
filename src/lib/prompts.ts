@@ -22,7 +22,7 @@ export function buildKeywordAnalysisPrompt(
 - Do NOT add ANY new keywords, hashtags, hashtag variants, abbreviations, synonyms, related terms, expanded terms, or brainstormed alternatives.
 - Do NOT remove, rename, or swap any user-provided keyword.
 - Do NOT add terms with or without "#" — if the user provided "NFL", do NOT add "#NFL". If the user provided "#NFL", do NOT add "NFL". Use ONLY what was given.
-- The server builds the final suggestedQuery from the user's exact input: it quotes multi-word phrases, converts AND to X-valid implicit AND (a space), and parenthesizes OR-groups as needed. Your queryTerms should list the leaf terms from the user's input only (no boolean operators), for reference — do not invent structure via queryTerms.
+- The server builds the final suggestedQuery from the user's exact input: it converts commas to OR, quotes multi-word phrases, converts AND to X-valid implicit AND (a space), and parenthesizes OR-groups as needed. Your queryTerms should list the leaf terms from the user's input only (no boolean operators), for reference — do not invent structure via queryTerms.
 ${includeNegations ? '- The ONLY additions allowed are contextual negation terms (-term) at the end for brand safety.' : '- Do NOT add any negation terms beyond what the user already provided. If the user\'s input includes negation terms (-term), keep them exactly as-is.'}
 - If you add even ONE keyword that was not in the original input, you have failed this task.`
     : '';

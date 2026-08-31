@@ -42,7 +42,11 @@ export default function KeywordAnalysisStep() {
 
   useEffect(() => {
     if (keywordAnalysis) {
-      setEditedQuery(keywordAnalysis.suggestedQuery);
+      // Exact mode: show syntax-normalized keywords (commas→OR, AND→parens), not raw paste
+      const displayQuery = campaignInput.useExactKeywords
+        ? ensureXQuerySyntax(keywordAnalysis.suggestedQuery)
+        : keywordAnalysis.suggestedQuery;
+      setEditedQuery(displayQuery);
       setEditedLookbackQuery(keywordAnalysis.lookbackQuery || '');
       // If there's a user override, keep it; otherwise use Grok's
       setEditedSeasonality(seasonalityOverrideRef.current ?? keywordAnalysis.seasonality);
@@ -84,6 +88,10 @@ export default function KeywordAnalysisStep() {
         }
 
         const result = await res.json();
+        // Exact mode: force valid X syntax onto the query shown on this page
+        if (campaignInput.useExactKeywords && result.suggestedQuery) {
+          result.suggestedQuery = ensureXQuerySyntax(result.suggestedQuery);
+        }
         setKeywordAnalysis(result);
         setEditedQuery(result.suggestedQuery);
         setEditedLookbackQuery(result.lookbackQuery || '');
@@ -194,7 +202,9 @@ export default function KeywordAnalysisStep() {
     <Card>
       <h2 className="text-xl font-bold text-white mb-1">Keyword Analysis</h2>
       <p className="text-x-gray text-sm mb-6">
-        Grok has analyzed your keywords and suggested an optimized search query. You can override any field below.
+        {campaignInput.useExactKeywords
+          ? 'Your exact keywords with valid X search syntax applied (commas → OR, AND groups parenthesized). You can edit any field below.'
+          : 'Grok has analyzed your keywords and suggested an optimized search query. You can override any field below.'}
       </p>
 
       <div className="space-y-4">
