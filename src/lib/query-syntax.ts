@@ -6,6 +6,7 @@
  * Parentheses group expressions.
  * Precedence: AND binds tighter than OR, so OR-groups joined by AND must be parenthesized:
  *   (a OR b) (c OR d)  — not  a OR b c OR d
+ * Trailing negations are implicit AND too: (a OR b) -x — not a OR b -x.
  */
 
 function formatNegationTerm(term: string): string {
@@ -240,4 +241,42 @@ export function normalizeExactQuery(
 export function ensureXQuerySyntax(query: string): string {
   if (!query?.trim()) return query;
   return normalizeExactQuery(query, { quoteMultiWord: true });
+}
+
+/**
+ * Grok-optimize query builder (campaign query and lookback query).
+ *
+ * Positive terms are joined with OR. Negations are appended with a space,
+ * which X treats as AND. AND binds tighter than OR, so `a OR b -x` means
+ * `a OR (b -x)` — the exclusion filters only the last keyword. When two or
+ * more keywords are followed by a negation, wrap the OR-group once:
+ * `(a OR b) -x`. That adds two characters. Exclusions are not copied onto
+ * each keyword, which would multiply the query toward X's length limit.
+ *
+ * A single keyword (`nike -scandal`), an OR-group with no exclusions
+ * (`a OR b`), and an exclusions-only list (`-x -y`) are left ungrouped.
+ * None of those need parentheses, and an empty term list stays empty
+ * rather than `()`.
+ */
+export function assembleQuery(terms: string[]): string {
+  const cleaned = [...new Set(terms.map((t) => t.trim()).filter(Boolean))];
+  const positive = cleaned.filter((t) => !t.startsWith('-'));
+  const negations = cleaned.filter((t) => t.startsWith('-')).map(formatNegationTerm);
+
+  const positiveTerms = positive.map((term) => {
+    if (term.includes(' ') && !term.startsWith('#')) {
+      return `"${term}"`;
+    }
+    return term;
+  });
+
+  let positiveQuery = positiveTerms.join(' OR ');
+  // Only the multi-keyword + trailing-operator case changes precedence.
+  if (positiveTerms.length > 1 && negations.length > 0) {
+    positiveQuery = `(${positiveQuery})`;
+  }
+
+  if (negations.length === 0) return positiveQuery;
+  if (!positiveQuery) return negations.join(' ');
+  return `${positiveQuery} ${negations.join(' ')}`;
 }

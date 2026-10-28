@@ -2,31 +2,9 @@
  * Verification script for exact-keywords query syntax vs Grok-optimize assembleQuery.
  * Run: node --experimental-strip-types scripts/verify-exact-query-syntax.ts
  */
-import { normalizeExactQuery, ensureXQuerySyntax } from '../src/lib/query-syntax.ts';
+import { normalizeExactQuery, ensureXQuerySyntax, assembleQuery } from '../src/lib/query-syntax.ts';
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
-
-// --- Mirror of assembleQuery from analyze-keywords/route.ts (Grok optimize path) ---
-function assembleQuery(terms: string[]): string {
-  const cleaned = [...new Set(terms.map((t) => t.trim()).filter(Boolean))];
-  const positive = cleaned.filter((t) => !t.startsWith('-'));
-  const negations = cleaned.filter((t) => t.startsWith('-'));
-  const positiveQuery = positive
-    .map((term) => (term.includes(' ') && !term.startsWith('#') ? `"${term}"` : term))
-    .join(' OR ');
-  if (negations.length > 0) {
-    const negationStr = negations
-      .map((term) => {
-        const inner = term.slice(1);
-        if (inner.startsWith('"') && inner.endsWith('"')) return term;
-        if (inner.includes(' ')) return `-"${inner}"`;
-        return term;
-      })
-      .join(' ');
-    return `${positiveQuery} ${negationStr}`;
-  }
-  return positiveQuery;
-}
 
 /** Simulate route suggestedQuery assembly */
 function simulateRouteSuggestedQuery(opts: {
@@ -182,10 +160,86 @@ const grokRoute = simulateRouteSuggestedQuery({
   keywords: ['Team Canada'],
   queryTerms: grokTerms,
 });
-const grokExpected = assembleQuery(grokTerms);
-assert(grokRoute === grokExpected, 'optimize uses assembleQuery');
-assert(grokRoute === '"Canada National Team" OR CanMNT OR #CanadaSoccer OR "Canada vs Switzerland" -scandal', `got ${grokRoute}`);
-ok('Grok optimize route → assembleQuery (all OR + trailing negations)');
+const grokBefore = '"Canada National Team" OR CanMNT OR #CanadaSoccer OR "Canada vs Switzerland" -scandal';
+const grokExpected = '("Canada National Team" OR CanMNT OR #CanadaSoccer OR "Canada vs Switzerland") -scandal';
+assert(grokRoute === grokExpected, `got ${grokRoute}`);
+assert(grokRoute === assembleQuery(grokTerms), 'optimize uses assembleQuery');
+assert(grokRoute !== grokBefore, 'must not leave exclusions bound only to the last OR term');
+ok('Grok optimize route → assembleQuery groups OR terms before exclusions');
+
+console.log('\n=== Grok-optimize grouping: exclusions apply to every keyword ===\n');
+console.log('  before:', grokBefore);
+console.log('  after: ', grokExpected);
+
+// Same builder is used for the lookback query (year/opponent-swapped terms).
+const lookbackTerms = ['Canada vs Belgium', 'CanMNT', '#WC2022', '-scandal', '-bet'];
+const lookback = assembleQuery(lookbackTerms);
+assert(
+  lookback === '("Canada vs Belgium" OR CanMNT OR #WC2022) -scandal -bet',
+  `lookback got ${lookback}`
+);
+ok(`lookback query grouped: ${lookback}`);
+
+const campaignMatchup = assembleQuery(['Canada vs Switzerland', 'CanMNT', '#WC2026', '-scandal', '-bet']);
+assert(
+  campaignMatchup === '("Canada vs Switzerland" OR CanMNT OR #WC2026) -scandal -bet',
+  `campaign got ${campaignMatchup}`
+);
+// Exact mode already parenthesizes this shape; optimize now matches it.
+assert(
+  campaignMatchup === normalizeExactQuery('Canada vs Switzerland OR CanMNT OR #WC2026 -scandal -bet'),
+  'optimize OR+exclusion matches exact-mode grouping'
+);
+ok('campaign query grouped the same way exact mode already does');
+
+assert(assembleQuery(['NFL', 'NBA', '-lang:ja']) === '(NFL OR NBA) -lang:ja', 'operator exclusion');
+ok('other trailing operators (for example -lang:) apply to the whole OR group');
+
+assert(assembleQuery(['A', 'B', '-"domestic violence"', '-injury']) === '(A OR B) -"domestic violence" -injury');
+ok('multi-word and already-quoted exclusions stay outside the group');
+
+assert(assembleQuery(['a', '-x', 'b', '-y']) === '(a OR b) -x -y', 'interleaved terms');
+ok('exclusions are pulled out of the OR list and applied to every keyword');
+
+// Single keyword and no-exclusion cases: valid, no empty parentheses.
+assert(assembleQuery(['Nike']) === 'Nike');
+assert(assembleQuery(['Nike', '-scandal']) === 'Nike -scandal');
+assert(assembleQuery(['Team Canada', '-point spread']) === '"Team Canada" -"point spread"');
+assert(assembleQuery(['NFL', 'NBA']) === 'NFL OR NBA');
+assert(assembleQuery(['Canada National Team', 'CanMNT']) === '"Canada National Team" OR CanMNT');
+assert(assembleQuery([]) === '');
+assert(assembleQuery(['-scandal', '-lawsuit']) === '-scandal -lawsuit');
+assert(assembleQuery(['  NFL  ', ' NBA ', ' -scandal ']) === '(NFL OR NBA) -scandal');
+assert(assembleQuery(['NFL', ' NFL ', 'NBA', '-bet', '-bet']) === '(NFL OR NBA) -bet');
+for (const q of [
+  assembleQuery([]),
+  assembleQuery(['Nike']),
+  assembleQuery(['Nike', '-scandal']),
+  assembleQuery(['NFL', 'NBA']),
+  assembleQuery(['-scandal']),
+  assembleQuery(['A', 'B', '-x']),
+]) {
+  assert(!q.includes('()'), `stray empty parens in ${JSON.stringify(q)}`);
+}
+ok('single-keyword, no-exclusion, and empty cases have no stray parentheses');
+
+// Grouping adds one pair of parentheses. It does not copy each exclusion
+// onto every keyword, which would multiply length toward X's query cap.
+const manyTerms = Array.from({ length: 30 }, (_, i) => `term${i}`);
+const manyNeg = ['-alpha', '-beta', '-gamma'];
+const groupedMany = assembleQuery([...manyTerms, ...manyNeg]);
+const ungroupedMany = `${manyTerms.join(' OR ')} ${manyNeg.join(' ')}`;
+const repeatedMany = manyTerms.map((t) => `${t} ${manyNeg.join(' ')}`).join(' OR ');
+assert(groupedMany === `(${manyTerms.join(' OR ')}) ${manyNeg.join(' ')}`);
+assert(groupedMany.length === ungroupedMany.length + 2, `length delta ${groupedMany.length - ungroupedMany.length}`);
+assert(groupedMany.length < repeatedMany.length, 'grouping is shorter than per-keyword exclusions');
+ok(`length: grouped query is ungrouped + 2 chars (${groupedMany.length} vs repeating exclusions ${repeatedMany.length})`);
+
+// Exact-keywords mode already grouped OR + exclusions. Lock that output.
+assert(normalizeExactQuery('NFL OR NBA -scandal -lawsuit') === '(NFL OR NBA) -scandal -lawsuit');
+assert(normalizeExactQuery('Nike -scandal') === 'Nike -scandal');
+assert(normalizeExactQuery('NFL OR NBA') === '(NFL OR NBA)');
+ok('exact-keywords OR/exclusion grouping unchanged');
 
 // Exact mode must NOT use assembleQuery flattening even if queryTerms would flatten
 const exactNotFlatten = simulateRouteSuggestedQuery({
