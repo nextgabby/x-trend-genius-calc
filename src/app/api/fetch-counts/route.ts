@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { fetchTweetCounts } from '@/lib/x-api';
-import { subMinutes } from 'date-fns';
+import { resolveCountWindow } from '@/lib/count-window';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { query, lookbackStartDate, lookbackEndDate } = body;
+    const { query, lookbackStartDate, lookbackEndDate, recentProxyWhenUnstarted } = body;
 
     if (!query || !lookbackStartDate || !lookbackEndDate) {
       return NextResponse.json(
@@ -18,21 +18,26 @@ export async function POST(request: Request) {
     console.log(`[Input] query: "${query}"`);
     console.log(`[Input] lookbackStartDate: ${lookbackStartDate}, lookbackEndDate: ${lookbackEndDate}`);
 
-    const startTime = new Date(lookbackStartDate).toISOString();
+    const resolved = resolveCountWindow({
+      start: lookbackStartDate,
+      end: lookbackEndDate,
+      recentProxyWhenUnstarted: recentProxyWhenUnstarted === true,
+    });
 
-    // Ensure end_time is at least 1 minute before now (X API requirement)
-    const requestedEnd = new Date(lookbackEndDate);
-    const safeMax = subMinutes(new Date(), 1);
-    const endTime = requestedEnd > safeMax ? safeMax.toISOString() : requestedEnd.toISOString();
+    if (!resolved.ok) {
+      console.log(`[Resolved] rejected: ${resolved.error}`);
+      return NextResponse.json({ error: resolved.error }, { status: 400 });
+    }
 
-    console.log(`[Resolved] startTime: ${startTime}, endTime: ${endTime}${requestedEnd > safeMax ? ' (clamped to now-1m)' : ''}`);
+    const { window } = resolved;
+    console.log(`[Resolved] kind: ${window.kind}, startTime: ${window.startTime}, endTime: ${window.endTime}`);
 
-    const result = await fetchTweetCounts(query, startTime, endTime);
+    const result = await fetchTweetCounts(query, window.startTime, window.endTime);
 
     console.log(`[Result] ${result.data.length} data points, ${result.totalTweets.toLocaleString()} total tweets`);
     console.log(`[Result] First point: ${result.data[0]?.timestamp} (${result.data[0]?.count}), Last point: ${result.data[result.data.length - 1]?.timestamp} (${result.data[result.data.length - 1]?.count})`);
 
-    return NextResponse.json(result);
+    return NextResponse.json({ ...result, window });
   } catch (error) {
     console.error('Fetch counts error:', error);
     return NextResponse.json(

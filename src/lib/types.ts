@@ -1,3 +1,5 @@
+import type { CountWindowInfo } from './count-window';
+
 export interface CampaignInput {
   handle: string;
   campaignStartDate: string; // ISO date string
@@ -38,6 +40,8 @@ export interface CountsResponse {
   totalTweets: number;
   startTime: string;
   endTime: string;
+  /** Present when /api/fetch-counts resolved the requested dates. */
+  window?: CountWindowInfo;
 }
 
 export interface ThresholdRecommendation {

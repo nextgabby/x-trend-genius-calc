@@ -16,7 +16,7 @@ When you open the tool, you'll see two tabs at the top:
 A step-by-step wizard that takes you from scratch to a fully configured trigger. Use this when you're setting up a **new campaign**.
 
 ### Threshold Analysis
-A standalone tool for testing existing thresholds against recent data. Use this when you already have thresholds and want to **validate or adjust** them.
+A standalone tool for testing existing thresholds against the campaign dates you enter. Use this when you already have thresholds and want to **validate or adjust** them.
 
 ---
 
@@ -103,25 +103,31 @@ The final configuration summary with everything in one place:
 
 ## Threshold Analysis (Standalone Tool)
 
-Use this when you already have thresholds and want to test them against recent real-world data.
+Use this when you already have thresholds and want to test them against real post volume for the campaign dates.
 
 ### Inputs
 
 - **Search Query** — The X search query to test (paste your existing trigger query).
-- **Campaign Start / End** — When your campaign runs. This is important because Grok uses it to determine if the test data is representative. For example, testing an NFL query in April will show offseason data — Grok will warn you that these thresholds won't apply during the regular season.
+- **Campaign Start / End** — When your campaign runs. The tool fetches hourly volume for this range. Grok also uses the dates to judge whether that volume is representative. For example, testing an NFL query in April will show offseason data — Grok will warn you that these thresholds won't apply during the regular season.
 - **ON Threshold** — Your current ON threshold (posts/hour).
 - **OFF Threshold** — Your current OFF threshold (posts/hour).
 
 ### What You Get
 
-After clicking "Analyze," the tool fetches the last 7 days of real data from X and shows:
+After clicking "Analyze," the tool fetches real hourly volume from X for the campaign start and end you entered:
 
-**Volume Chart** — Your query's hourly volume over the past 7 days with ON/OFF threshold lines overlaid. This gives you an immediate visual of how often your thresholds would trigger.
+- **Dates already in the past** — Volume for that exact range.
+- **Campaign already started, end date still in the future** — The start date is kept. The chart stops about a minute ago, which is the latest time X will return, and the page says this is only the part of the campaign that has already happened.
+- **Campaign has not started (both dates in the future)** — X has no posts for that range, and a request with the end pulled back to "now" would start after it ends. The tool does not send that request. It fetches the last 7 days instead and labels the chart as a **proxy**. That chart is recent query behavior, not the campaign period. Thresholds fit to it can be wrong once the campaign is live.
+- **Start date after the end date** — Analyze stops and explains the problem. Nothing is fetched.
 
-**Recommendation** — Grok analyzes the data and recommends whether to raise, lower, or keep your thresholds. This is not a generic suggestion — Grok:
+**Volume Chart** — Hourly volume for that window with ON/OFF threshold lines overlaid. This gives you an immediate visual of how often your thresholds would trigger.
+
+**Recommendation** — Grok analyzes the fetched window and recommends whether to raise, lower, or keep your thresholds. This is not a generic suggestion — Grok:
 - Computes exact statistics (mean, median, percentiles, spike counts) from the raw data
 - Identifies what kind of topic you're tracking (evergreen celebrity, seasonal sport, event-driven, etc.)
-- Compares the 7-day test window to your campaign dates to check if the data is representative
+- Compares the fetched window to your campaign dates to check if the data is representative
+- If the window is a proxy or only the elapsed part of the campaign, Grok is told that and should say so
 - If there's a mismatch (e.g., offseason data for an in-season campaign), Grok flags it and explains what to expect during the actual campaign
 
 If Grok suggests new thresholds, the specific recommended values are shown.
@@ -182,7 +188,7 @@ Getting this right is critical — using offseason data to set thresholds for an
 - **Start with "Let Grok optimize"** for keywords unless you have client-approved terms. Grok catches variations and hashtags you might miss.
 - **Review the search query** in Step 2 carefully. This is what determines which conversations trigger your ads. Make sure it's specific enough to avoid false positives but broad enough to catch the conversation you want.
 - **Check the seasonality classification.** If Grok says "non-seasonal" but your topic is clearly seasonal (or vice versa), override it. This significantly affects which historical data is used.
-- **Use the Threshold Analysis tab** to validate thresholds before or during a live campaign. It only takes a minute to check if your thresholds are still well-calibrated.
-- **Always enter campaign dates** in the Threshold Analysis tab. Without them, Grok can't tell you if the 7-day test data is representative of what your campaign will actually see.
+- **Use the Threshold Analysis tab** to validate thresholds before or during a live campaign. It fetches volume for the dates you enter.
+- **Always enter campaign dates** in the Threshold Analysis tab. Those dates are the volume window. If the campaign has not started, the tool says so and shows the last 7 days as a labeled proxy instead.
 - **Don't panic about low confidence** — it usually just means Grok is being honest that the data window may not be representative. It's a signal to re-test later, not that something is broken.
 - **Use "Explain with Grok"** on threshold hits to understand what's driving spikes. This helps you decide if the spikes are the kind of moments you want your ads to run during, or noise you want to filter out.

@@ -6,7 +6,9 @@ import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import ThresholdChart from '@/components/charts/ThresholdChart';
 import { formatNumber, formatDateTime } from '@/lib/utils';
-import type { HourlyDataPoint, ThresholdHit, TrendExplanation, ThresholdRecommendationResult } from '@/lib/types';
+import { resolveCountWindow, thresholdCampaignRange } from '@/lib/count-window';
+import type { CountWindowInfo } from '@/lib/count-window';
+import type { HourlyDataPoint, ThresholdHit, TrendExplanation, ThresholdRecommendationResult, CountsResponse } from '@/lib/types';
 
 interface DailySummary {
   date: string;
@@ -91,6 +93,40 @@ function getSurroundingHours(
     .map((d) => ({ timestamp: d.timestamp, count: d.count }));
 }
 
+function volumeChartTitle(kind: CountWindowInfo['kind'] | undefined, hasNotice: boolean): string {
+  switch (kind) {
+    case 'recent-proxy':
+      return 'Last 7 Days Volume (Proxy) with Thresholds';
+    case 'clamped':
+      return hasNotice
+        ? 'Campaign Volume So Far with Thresholds'
+        : 'Campaign Period Volume with Thresholds';
+    case 'requested':
+    case undefined:
+      return 'Campaign Period Volume with Thresholds';
+    default: {
+      const exhaustive: never = kind;
+      return exhaustive;
+    }
+  }
+}
+
+function emptyHitsMessage(kind: CountWindowInfo['kind'] | undefined): string {
+  switch (kind) {
+    case 'recent-proxy':
+      return 'No threshold hits in the last 7 days.';
+    case 'clamped':
+      return 'No threshold hits in the campaign window so far.';
+    case 'requested':
+    case undefined:
+      return 'No threshold hits during the campaign period.';
+    default: {
+      const exhaustive: never = kind;
+      return exhaustive;
+    }
+  }
+}
+
 function computeDailySummaries(
   data: HourlyDataPoint[],
   onThreshold: number
@@ -129,9 +165,23 @@ export default function ThresholdAnalysisTool() {
   const [recommendation, setRecommendation] = useState<RecommendationWithStats | null>(null);
   const [isRecommendationLoading, setIsRecommendationLoading] = useState(false);
   const [isAutoExplaining, setIsAutoExplaining] = useState(false);
+  const [countWindow, setCountWindow] = useState<CountWindowInfo | null>(null);
 
   const onVal = Number(onThreshold);
   const offVal = Number(offThreshold);
+
+  const datePreview = (() => {
+    if (!campaignStartDate || !campaignEndDate) return null;
+    const range = thresholdCampaignRange(campaignStartDate, campaignEndDate);
+    if (!range) return { ok: false as const, message: 'Enter a valid start and end date.' };
+    const resolved = resolveCountWindow({
+      start: range.start,
+      end: range.end,
+      recentProxyWhenUnstarted: true,
+    });
+    if (!resolved.ok) return { ok: false as const, message: resolved.error };
+    return { ok: true as const, message: resolved.window.notice };
+  })();
 
   const handleAnalyze = async () => {
     if (!query.trim() || !onThreshold || !offThreshold || !campaignStartDate || !campaignEndDate) return;
@@ -143,18 +193,30 @@ export default function ThresholdAnalysisTool() {
     setDailySummaries([]);
     setRecommendation(null);
     setIsAutoExplaining(false);
+    setCountWindow(null);
 
     try {
-      const fetchStartDate = new Date(campaignStartDate + 'T00:00:00Z').toISOString();
-      const fetchEndDate = new Date(campaignEndDate + 'T23:59:59Z').toISOString();
+      const range = thresholdCampaignRange(campaignStartDate, campaignEndDate);
+      if (!range) {
+        throw new Error('Enter a valid start and end date.');
+      }
+      const resolved = resolveCountWindow({
+        start: range.start,
+        end: range.end,
+        recentProxyWhenUnstarted: true,
+      });
+      if (!resolved.ok) {
+        throw new Error(resolved.error);
+      }
 
       const res = await fetch('/api/fetch-counts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: query.trim(),
-          lookbackStartDate: fetchStartDate,
-          lookbackEndDate: fetchEndDate,
+          lookbackStartDate: range.start,
+          lookbackEndDate: range.end,
+          recentProxyWhenUnstarted: true,
         }),
       });
 
@@ -163,9 +225,10 @@ export default function ThresholdAnalysisTool() {
         throw new Error(err.error || 'Failed to fetch data');
       }
 
-      const result = await res.json();
+      const result: CountsResponse = await res.json();
       const hourlyData: HourlyDataPoint[] = result.data;
       setData(hourlyData);
+      setCountWindow(result.window ?? null);
 
       const foundHits = groupThresholdHits(hourlyData, onVal);
       setHits(foundHits);
@@ -174,7 +237,7 @@ export default function ThresholdAnalysisTool() {
       setDailySummaries(summaries);
 
       // Fetch Grok-powered recommendation in parallel
-      fetchRecommendation(hourlyData);
+      fetchRecommendation(hourlyData, result.window?.notice ?? undefined);
 
       // Auto-explain all hits sequentially (avoids rate limits)
       if (foundHits.length > 0) {
@@ -187,7 +250,7 @@ export default function ThresholdAnalysisTool() {
     }
   };
 
-  const fetchRecommendation = async (hourlyData: HourlyDataPoint[]) => {
+  const fetchRecommendation = async (hourlyData: HourlyDataPoint[], dataWindowNote?: string) => {
     setIsRecommendationLoading(true);
     try {
       const res = await fetch('/api/analyze-threshold-recommendation', {
@@ -199,6 +262,7 @@ export default function ThresholdAnalysisTool() {
           offThreshold: offVal,
           campaignStartDate: campaignStartDate || undefined,
           campaignEndDate: campaignEndDate || undefined,
+          dataWindowNote,
           data: hourlyData,
         }),
       });
@@ -375,8 +439,8 @@ export default function ThresholdAnalysisTool() {
       <Card>
         <h2 className="text-xl font-bold text-white mb-4">Threshold Analysis</h2>
         <p className="text-x-gray text-sm mb-6">
-          Test your thresholds against your campaign period&apos;s real data. See how often
-          they would trigger and get per-spike explanations from Grok.
+          Test your thresholds against real X volume for the campaign dates.
+          If the campaign has not started, this uses the last 7 days as a labeled proxy.
         </p>
 
         <div className="space-y-4">
@@ -418,6 +482,20 @@ export default function ThresholdAnalysisTool() {
             </div>
           </div>
 
+          {datePreview?.message && (
+            <div
+              className={`p-3 rounded-lg border ${
+                datePreview.ok
+                  ? 'bg-yellow-500/10 border-yellow-500/20'
+                  : 'bg-red-500/10 border-red-500/20'
+              }`}
+            >
+              <p className={`text-sm ${datePreview.ok ? 'text-yellow-400' : 'text-red-400'}`}>
+                {datePreview.message}
+              </p>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-[#00BA7C] mb-1">
@@ -452,7 +530,7 @@ export default function ThresholdAnalysisTool() {
             variant="primary"
             size="lg"
             isLoading={isLoading}
-            disabled={!query.trim() || !onThreshold || !offThreshold || !campaignStartDate || !campaignEndDate}
+            disabled={!query.trim() || !onThreshold || !offThreshold || !campaignStartDate || !campaignEndDate || (datePreview !== null && !datePreview.ok)}
             className="w-full"
           >
             Analyze
@@ -468,10 +546,16 @@ export default function ThresholdAnalysisTool() {
 
       {data && (
         <>
+          {countWindow?.notice && (
+            <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+              <p className="text-yellow-400 text-sm">{countWindow.notice}</p>
+            </div>
+          )}
+
           {/* Chart */}
           <Card>
             <h3 className="text-lg font-bold text-white mb-4">
-              Campaign Period Volume with Thresholds
+              {volumeChartTitle(countWindow?.kind, Boolean(countWindow?.notice))}
             </h3>
             <div className="bg-black rounded-xl border border-x-border p-4">
               <ThresholdChart
@@ -646,7 +730,7 @@ export default function ThresholdAnalysisTool() {
             {hits.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-x-gray text-sm">
-                  No threshold hits during the campaign period.
+                  {emptyHitsMessage(countWindow?.kind)}
                 </p>
               </div>
             ) : (

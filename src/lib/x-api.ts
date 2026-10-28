@@ -1,4 +1,5 @@
 import type { HourlyDataPoint, CountsResponse } from './types';
+import { assertValidCountsRange } from './count-window';
 
 const X_API_COUNTS_URL = 'https://api.twitter.com/2/tweets/counts/all';
 const X_API_SEARCH_URL = 'https://api.twitter.com/2/tweets/search/all';
@@ -14,6 +15,8 @@ export async function fetchTweetCounts(
   startTime: string,
   endTime: string
 ): Promise<CountsResponse> {
+  assertValidCountsRange(startTime, endTime);
+
   const bearerToken = process.env.X_API_BEARER_TOKEN;
   if (!bearerToken) {
     throw new Error('X_API_BEARER_TOKEN environment variable is not set');
