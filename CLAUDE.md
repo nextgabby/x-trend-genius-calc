@@ -1,4 +1,3 @@
-@AGENTS.md
 # TREND GENIUS CALCULATOR — PRODUCT SPEC & ENGINEERING RULES
 
 ## CORE PHILOSOPHY
@@ -218,11 +217,17 @@ The Grok prompt includes a 6-item sanity check that Grok must pass before return
 - Current OFF threshold
 
 ### Flow
-1. Fetch last 7 days of real data from X for the query
-2. Display volume chart with ON/OFF lines overlaid
-3. Grok analyzes the data and recommends: raise, lower, or keep thresholds
-4. For each threshold hit, Grok explains WHY the topic was trending at that time
-5. Shows confidence level and whether test data is representative of campaign dates
+1. Fetch hourly post counts from X for the campaign start/end dates (`GET /2/tweets/counts/all`, full archive — not the 7-day recent counts endpoint).
+2. The request must be a valid counts window: `start_time` strictly before `end_time`, and `end_time` at least ~10 seconds before now. The server keeps a 1-minute margin.
+3. **End in the future, start already in the past** — clamp the end to that margin and label the chart as campaign volume so far. Keep the start.
+4. **Whole range still in the future** — clamping the end would put the start after the end, which X rejects. Do not send that range. Fall back to the last 7 days and label it as a proxy because the campaign has not started. Pass that fact to the recommendation prompt.
+5. **Start after end** — reject with a clear message. Do not call X, and do not substitute the proxy.
+6. Display the volume chart with ON/OFF lines overlaid.
+7. Grok analyzes the fetched window and recommends: raise, lower, or keep thresholds.
+8. For each threshold hit, Grok explains WHY the topic was trending at that time.
+9. Shows confidence level and whether the fetched window is representative of the campaign dates.
+
+The wizard's historical lookback uses the same counts route. It gets the same clamp and the same rejection of an inverted or all-future range. It does **not** get the 7-day proxy — that fallback is only for Threshold Analysis (`recentProxyWhenUnstarted`). A future lookback in the wizard must stay an error so bad dates are not silently replaced with recent volume.
 
 ### CRITICAL BUG TO WATCH
 ThresholdAnalysisStep must pass **both the campaign query AND the lookback query** to the threshold API when a lookback query exists. Grok needs both to reason correctly about the data. This has been a recurring bug — always verify which query variables are being passed.
@@ -273,6 +278,12 @@ ThresholdAnalysisStep must pass **both the campaign query AND the lookback query
 - Input: @LouisVuitton handle, "zendaya" keyword
 - Expected: Broad Zendaya query — all trending Zendaya conversation, not narrowed to fashion-only
 
+### Test 11: Threshold Analysis date window
+- Fully future campaign dates → do not call X with start after end. Fetch the last 7 days and label it as a proxy.
+- Start in the past, end in the future → clamp the end to about a minute ago, keep the start, label it as the campaign so far.
+- Both dates in the past, start before end → fetch that range unchanged.
+- Start after end → clear error, no X call, no proxy.
+
 ---
 
 ## ARCHITECTURE INVARIANTS — DO NOT BREAK THESE
@@ -288,6 +299,7 @@ ThresholdAnalysisStep must pass **both the campaign query AND the lookback query
 9. **suggestedKeywords was removed** — redundant with queryTerms[] and excludedKeywords[]
 10. **Grok model: grok-4.3-latest** — do not use grok-3 (retired) or bare grok-4.3 (use the -latest alias)
 11. **AND/OR/SINGLE parsing lives in InputStep** — server and Grok receive the parsed operator, they don't re-parse
+12. **X counts windows must be valid** — never call the counts API with `start >= end` or an `end_time` inside the last 10 seconds. Threshold Analysis uses a labeled last-7-days proxy when the campaign has not started. A partial-future range keeps its start and clamps the end. The wizard does not receive that proxy.
 
 ---
 

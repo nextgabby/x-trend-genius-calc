@@ -523,7 +523,8 @@ export function buildThresholdRecommendationPrompt(
   dataStartDate: string,
   dataEndDate: string,
   campaignStartDate?: string,
-  campaignEndDate?: string
+  campaignEndDate?: string,
+  dataWindowNote?: string
 ): string {
   const totalHours = stats.totalDataPoints;
   const pctAboveOn = totalHours > 0 ? ((hoursAboveOn / totalHours) * 100).toFixed(1) : '0';
@@ -545,7 +546,7 @@ A user wants to evaluate whether their ON/OFF thresholds are well-calibrated for
 Query: ${query}
 Current ON Threshold: ${onThreshold} posts/hour
 Current OFF Threshold: ${offThreshold} posts/hour
-Data Window: ${dataStartDate} to ${dataEndDate}${campaignStartDate && campaignEndDate ? `\nTargeted Campaign Period: ${campaignStartDate} to ${campaignEndDate}` : '\nTargeted Campaign Period: Not specified'}
+Data Window: ${dataStartDate} to ${dataEndDate}${campaignStartDate && campaignEndDate ? `\nTargeted Campaign Period: ${campaignStartDate} to ${campaignEndDate}` : '\nTargeted Campaign Period: Not specified'}${dataWindowNote ? `\nDATA WINDOW NOTE (fact): ${dataWindowNote} Say this explicitly in the reasoning. If the note says the chart is a proxy, set confidence to "low" and do not treat these counts as the campaign period.` : ''}
 
 EXACT THRESHOLD HIT COUNTS (computed from raw data — these are facts, not estimates):
 - Hours above ON threshold (${onThreshold}): ${hoursAboveOn} out of ${totalHours} hours (${pctAboveOn}%)
